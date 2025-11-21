@@ -4,10 +4,10 @@ import (
 	"errors"
 	"net/http"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/auth"
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/labstack/echo/v4"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/auth"
+	"github/chapool/go-wallet/internal/util"
 )
 
 func GetUserInfoRoute(s *api.Server) *echo.Route {

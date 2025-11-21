@@ -3,9 +3,9 @@ package test_test
 import (
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/test"
 	"github.com/go-openapi/swag"
 	"github.com/stretchr/testify/assert"
+	"github/chapool/go-wallet/internal/test"
 )
 
 func TestGetMapFromStruct(t *testing.T) {

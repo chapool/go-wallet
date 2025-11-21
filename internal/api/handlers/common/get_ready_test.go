@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/test"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/test"
 )
 
 func TestGetReadyReadiness(t *testing.T) {

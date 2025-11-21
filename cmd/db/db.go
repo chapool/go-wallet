@@ -1,8 +1,8 @@
 package db
 
 import (
-	"allaboutapps.dev/aw/go-starter/internal/util/command"
 	"github.com/spf13/cobra"
+	"github/chapool/go-wallet/internal/util/command"
 )
 
 func New() *cobra.Command {

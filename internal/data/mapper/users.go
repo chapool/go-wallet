@@ -1,8 +1,8 @@
 package mapper
 
 import (
-	"allaboutapps.dev/aw/go-starter/internal/data/dto"
-	"allaboutapps.dev/aw/go-starter/internal/models"
+	"github/chapool/go-wallet/internal/data/dto"
+	"github/chapool/go-wallet/internal/models"
 )
 
 func LocalAppUserProfileToDTO(appUserProfile *models.AppUserProfile) dto.AppUserProfile {

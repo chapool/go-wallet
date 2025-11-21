@@ -10,15 +10,15 @@ import (
 	"runtime"
 	"strings"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/api/handlers"
-	"allaboutapps.dev/aw/go-starter/internal/api/handlers/constants"
-	"allaboutapps.dev/aw/go-starter/internal/api/middleware"
-	"allaboutapps.dev/aw/go-starter/internal/api/router/templates"
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog/log"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/api/handlers"
+	"github/chapool/go-wallet/internal/api/handlers/constants"
+	"github/chapool/go-wallet/internal/api/middleware"
+	"github/chapool/go-wallet/internal/api/router/templates"
 
 	// #nosec G108 - pprof handlers (conditionally made available via http.DefaultServeMux)
 	"net/http/pprof"

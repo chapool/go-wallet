@@ -5,8 +5,8 @@ import (
 	"html/template"
 	"io"
 
-	"allaboutapps.dev/aw/go-starter/internal/api/router/templates"
 	"github.com/labstack/echo/v4"
+	"github/chapool/go-wallet/internal/api/router/templates"
 )
 
 type echoRenderer struct {

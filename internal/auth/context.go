@@ -3,10 +3,10 @@ package auth
 import (
 	"context"
 
-	"allaboutapps.dev/aw/go-starter/internal/data/dto"
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/go-openapi/swag"
 	"github.com/labstack/echo/v4"
+	"github/chapool/go-wallet/internal/data/dto"
+	"github/chapool/go-wallet/internal/util"
 )
 
 // EnrichContextWithCredentials stores the provided credentials in the form of user and access token used for authentication

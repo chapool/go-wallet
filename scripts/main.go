@@ -2,7 +2,7 @@
 
 package main
 
-import "allaboutapps.dev/aw/go-starter/scripts/cmd"
+import "github/chapool/go-wallet/scripts/cmd"
 
 func main() {
 	cmd.Execute()

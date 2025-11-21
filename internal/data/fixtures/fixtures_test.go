@@ -3,9 +3,9 @@ package fixtures_test
 import (
 	"testing"
 
-	data "allaboutapps.dev/aw/go-starter/internal/data/fixtures"
-	"allaboutapps.dev/aw/go-starter/internal/models"
 	"github.com/stretchr/testify/assert"
+	data "github/chapool/go-wallet/internal/data/fixtures"
+	"github/chapool/go-wallet/internal/models"
 )
 
 func TestUpsertableInterface(t *testing.T) {

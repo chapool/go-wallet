@@ -3,7 +3,7 @@ package httperrors
 import (
 	"net/http"
 
-	"allaboutapps.dev/aw/go-starter/internal/types"
+	"github/chapool/go-wallet/internal/types"
 )
 
 var (

@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/stretchr/testify/assert"
+	"github/chapool/go-wallet/internal/util"
 )
 
 func TestTypeConversions(t *testing.T) {

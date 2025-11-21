@@ -3,10 +3,10 @@ package test
 import (
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	"allaboutapps.dev/aw/go-starter/internal/mailer"
-	"allaboutapps.dev/aw/go-starter/internal/mailer/transport"
 	"github.com/jordan-wright/email"
+	"github/chapool/go-wallet/internal/config"
+	"github/chapool/go-wallet/internal/mailer"
+	"github/chapool/go-wallet/internal/mailer/transport"
 )
 
 const (

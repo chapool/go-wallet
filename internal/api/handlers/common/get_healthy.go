@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
 	"github.com/labstack/echo/v4"
+	"github/chapool/go-wallet/internal/api"
 )
 
 const (

@@ -3,11 +3,11 @@ package test_test
 import (
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/mailer/transport"
-	"allaboutapps.dev/aw/go-starter/internal/test"
-	"allaboutapps.dev/aw/go-starter/internal/test/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/mailer/transport"
+	"github/chapool/go-wallet/internal/test"
+	"github/chapool/go-wallet/internal/test/fixtures"
 )
 
 func TestWithTestMailer(t *testing.T) {

@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/api/router"
-	"allaboutapps.dev/aw/go-starter/internal/config"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/api/router"
+	"github/chapool/go-wallet/internal/config"
 )
 
 // WithTestServer returns a fully configured server (using the default server config).

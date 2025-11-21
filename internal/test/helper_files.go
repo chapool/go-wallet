@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/util"
 )
 
 // PrepareTestFile copies a test file by name from test/testdata/<filename> to a folder unique to the test.

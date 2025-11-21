@@ -186,6 +186,7 @@ sql-format: ##- (opt) Formats all *.sql files.
 	@find ${PWD} -path "*/tmp/*" -prune -name ".*" -prune -o -type f -iname "*.sql" -print \
 		| grep --invert "/app/dumps/" \
 		| grep --invert "/app/test/" \
+		| grep --invert "/cex-wallet/" \
 		| xargs -i pg_format --inplace {}
 
 sql-check-files: sql-check-syntax sql-check-migrations-unnecessary-null ##- (opt) Check syntax and unnecessary use of NULL keyword.
@@ -197,6 +198,7 @@ sql-check-syntax: ##- (opt) Checks syntax of all *.sql files.
 	@find ${PWD} -path "*/tmp/*" -prune -name ".*" -prune -path ./dumps -prune -false -o -type f -iname "*.sql" -print \
 		| grep --invert "/app/dumps/" \
 		| grep --invert "/app/test/" \
+		| grep --invert "/cex-wallet/" \
 		| xargs -i sed '1s#^#DO $$SYNTAX_CHECK$$ BEGIN RETURN;#; $$aEND; $$SYNTAX_CHECK$$;' {} \
 		| psql -d postgres --quiet -v ON_ERROR_STOP=1
 
@@ -405,7 +407,8 @@ set-module-name: ##- Wizard to set a new go module-name.
 		&& echo -n "Are you sure? [y/N]" \
 		&& read ans && [ $${ans:-N} = y ] \
 		&& echo -n "Please wait..." \
-		&& find . -not -path '*/\.*' -not -path './Makefile' -type f -exec sed -i "s|${GO_MODULE_NAME}|$${new_module_name}|g" {} \; \
+		&& old_module_name="$$($(MAKE) get-module-name)" \
+		&& find . -not -path '*/\.*' -not -path './Makefile' -type f -exec sed -i "s|$${old_module_name}|$${new_module_name}|g" {} \; \
 		&& echo "new go module-name: '$${new_module_name}'!"
 	@rm -f tmp/.modulename
 
@@ -451,6 +454,7 @@ changelog-release: ##- Generates a changelog release using the $(VERSION) variab
 # go module name (as in go.mod)
 GO_MODULE_NAME = $(eval GO_MODULE_NAME := $$(shell \
 	(mkdir -p tmp 2> /dev/null && cat tmp/.modulename 2> /dev/null) \
+	|| (go list -m 2>/dev/null | tee tmp/.modulename) \
 	|| (gsdev modulename 2> /dev/null | tee tmp/.modulename) || echo "unknown" \
 ))$(GO_MODULE_NAME)
 

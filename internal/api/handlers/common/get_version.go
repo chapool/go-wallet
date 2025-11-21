@@ -4,9 +4,9 @@ package common
 import (
 	"net/http"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/config"
 	"github.com/labstack/echo/v4"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/config"
 )
 
 func GetVersionRoute(s *api.Server) *echo.Route {

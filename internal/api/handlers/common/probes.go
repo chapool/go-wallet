@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"allaboutapps.dev/aw/go-starter/internal/util"
+	"github/chapool/go-wallet/internal/util"
 	"golang.org/x/sys/unix"
 )
 

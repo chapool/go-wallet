@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"fmt"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	"allaboutapps.dev/aw/go-starter/internal/util"
-	"allaboutapps.dev/aw/go-starter/internal/util/command"
 	"github.com/rs/zerolog/log"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/spf13/cobra"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/config"
+	"github/chapool/go-wallet/internal/util"
+	"github/chapool/go-wallet/internal/util/command"
 )
 
 func newMigrate() *cobra.Command {

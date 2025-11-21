@@ -6,16 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/api/httperrors"
-	"allaboutapps.dev/aw/go-starter/internal/models"
-	"allaboutapps.dev/aw/go-starter/internal/test"
-	"allaboutapps.dev/aw/go-starter/internal/test/fixtures"
-	"allaboutapps.dev/aw/go-starter/internal/types"
 	"github.com/aarondl/null/v8"
 	"github.com/aarondl/sqlboiler/v4/boil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/api/httperrors"
+	"github/chapool/go-wallet/internal/models"
+	"github/chapool/go-wallet/internal/test"
+	"github/chapool/go-wallet/internal/test/fixtures"
+	"github/chapool/go-wallet/internal/types"
 )
 
 func TestPostForgotPasswordCompleteSuccess(t *testing.T) {

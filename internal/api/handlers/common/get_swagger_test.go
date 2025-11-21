@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/test"
 )
 
 func TestSwaggerYAMLRetrieval(t *testing.T) {

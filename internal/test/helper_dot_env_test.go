@@ -4,10 +4,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	"allaboutapps.dev/aw/go-starter/internal/test"
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/stretchr/testify/assert"
+	"github/chapool/go-wallet/internal/config"
+	"github/chapool/go-wallet/internal/test"
+	"github/chapool/go-wallet/internal/util"
 )
 
 // This test will run or skip depending upon if you currently have a `.env.local` in your project directory

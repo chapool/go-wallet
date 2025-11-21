@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"path"
 
-	"allaboutapps.dev/aw/go-starter/internal/config"
+	"github/chapool/go-wallet/internal/config"
 )
 
 const (

@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	"allaboutapps.dev/aw/go-starter/internal/test"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/config"
+	"github/chapool/go-wallet/internal/test"
 )
 
 func TestMigrations(t *testing.T) {

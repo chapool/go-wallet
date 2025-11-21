@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"allaboutapps.dev/aw/go-starter/internal/config"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"github/chapool/go-wallet/internal/config"
 )
 
 func New() *cobra.Command {

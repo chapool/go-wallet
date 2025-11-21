@@ -3,12 +3,12 @@ package db_test
 import (
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/models"
-	"allaboutapps.dev/aw/go-starter/internal/test"
-	"allaboutapps.dev/aw/go-starter/internal/util/db"
 	"github.com/aarondl/sqlboiler/v4/queries"
 	"github.com/aarondl/sqlboiler/v4/queries/qm"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/models"
+	"github/chapool/go-wallet/internal/test"
+	"github/chapool/go-wallet/internal/util/db"
 )
 
 func TestWhereJSONStruct(t *testing.T) {

@@ -5,15 +5,15 @@ import (
 	"database/sql"
 	"fmt"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	data "allaboutapps.dev/aw/go-starter/internal/data/fixtures"
-	"allaboutapps.dev/aw/go-starter/internal/util"
-	"allaboutapps.dev/aw/go-starter/internal/util/command"
-	dbutil "allaboutapps.dev/aw/go-starter/internal/util/db"
 	"github.com/aarondl/sqlboiler/v4/boil"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/config"
+	data "github/chapool/go-wallet/internal/data/fixtures"
+	"github/chapool/go-wallet/internal/util"
+	"github/chapool/go-wallet/internal/util/command"
+	dbutil "github/chapool/go-wallet/internal/util/db"
 )
 
 func newSeed() *cobra.Command {

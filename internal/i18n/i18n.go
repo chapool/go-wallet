@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"allaboutapps.dev/aw/go-starter/internal/config"
 	"github.com/BurntSushi/toml"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/rs/zerolog/log"
+	"github/chapool/go-wallet/internal/config"
 	"golang.org/x/text/language"
 )
 

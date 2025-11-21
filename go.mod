@@ -1,4 +1,4 @@
-module allaboutapps.dev/aw/go-starter
+module github/chapool/go-wallet
 
 go 1.24.0
 

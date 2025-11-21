@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/stretchr/testify/assert"
+	"github/chapool/go-wallet/internal/config"
+	"github/chapool/go-wallet/internal/util"
 )
 
 func TestDotEnvOverride(t *testing.T) {

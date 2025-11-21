@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/test"
-	"allaboutapps.dev/aw/go-starter/internal/test/fixtures"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/test"
+	"github/chapool/go-wallet/internal/test/fixtures"
 )
 
 func TestGetCompleteRegister(t *testing.T) {

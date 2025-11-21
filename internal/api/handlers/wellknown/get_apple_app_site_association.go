@@ -1,8 +1,8 @@
 package wellknown
 
 import (
-	"allaboutapps.dev/aw/go-starter/internal/api"
 	"github.com/labstack/echo/v4"
+	"github/chapool/go-wallet/internal/api"
 )
 
 func GetAppleAppSiteAssociationRoute(s *api.Server) *echo.Route {

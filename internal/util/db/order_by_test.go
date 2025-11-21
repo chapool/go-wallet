@@ -4,16 +4,16 @@ import (
 	"database/sql"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/models"
-	"allaboutapps.dev/aw/go-starter/internal/test"
-	"allaboutapps.dev/aw/go-starter/internal/test/fixtures"
-	swaggerTypes "allaboutapps.dev/aw/go-starter/internal/types"
-	"allaboutapps.dev/aw/go-starter/internal/util/db"
 	"github.com/aarondl/null/v8"
 	"github.com/aarondl/sqlboiler/v4/boil"
 	"github.com/aarondl/sqlboiler/v4/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/models"
+	"github/chapool/go-wallet/internal/test"
+	"github/chapool/go-wallet/internal/test/fixtures"
+	swaggerTypes "github/chapool/go-wallet/internal/types"
+	"github/chapool/go-wallet/internal/util/db"
 )
 
 func TestOrderBy(t *testing.T) {

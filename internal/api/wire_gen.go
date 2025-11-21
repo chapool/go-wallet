@@ -7,12 +7,12 @@
 package api
 
 import (
-	"allaboutapps.dev/aw/go-starter/internal/auth"
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	"allaboutapps.dev/aw/go-starter/internal/data/local"
-	"allaboutapps.dev/aw/go-starter/internal/metrics"
 	"database/sql"
 	"github.com/google/wire"
+	"github/chapool/go-wallet/internal/auth"
+	"github/chapool/go-wallet/internal/config"
+	"github/chapool/go-wallet/internal/data/local"
+	"github/chapool/go-wallet/internal/metrics"
 	"testing"
 )
 

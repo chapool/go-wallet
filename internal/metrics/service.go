@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	"allaboutapps.dev/aw/go-starter/internal/metrics/users"
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/dlmiddlecote/sqlstats"
 	"github.com/prometheus/client_golang/prometheus"
+	"github/chapool/go-wallet/internal/config"
+	"github/chapool/go-wallet/internal/metrics/users"
+	"github/chapool/go-wallet/internal/util"
 )
 
 type Service struct {

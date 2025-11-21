@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"allaboutapps.dev/aw/go-starter/internal/types"
 	"github.com/go-openapi/swag"
 	"github.com/labstack/echo/v4"
+	"github/chapool/go-wallet/internal/types"
 )
 
 // Payload in accordance with RFC 7807 (Problem Details for HTTP APIs) with the exception of the type

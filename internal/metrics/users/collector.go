@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 
-	"allaboutapps.dev/aw/go-starter/internal/models"
-	"allaboutapps.dev/aw/go-starter/internal/util"
+	"github/chapool/go-wallet/internal/models"
+	"github/chapool/go-wallet/internal/util"
 )
 
 type DatabaseMetricsCollector struct {

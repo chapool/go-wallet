@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"allaboutapps.dev/aw/go-starter/internal/config"
+	"github/chapool/go-wallet/internal/config"
 )
 
 const (

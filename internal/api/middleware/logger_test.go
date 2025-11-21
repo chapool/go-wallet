@@ -5,11 +5,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/api/middleware"
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/api/middleware"
+	"github/chapool/go-wallet/internal/util"
 )
 
 func logTestHandler(c echo.Context) error {

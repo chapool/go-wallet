@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"errors"
 
-	"allaboutapps.dev/aw/go-starter/internal/api/httperrors"
-	"allaboutapps.dev/aw/go-starter/internal/data/dto"
-	"allaboutapps.dev/aw/go-starter/internal/models"
-	"allaboutapps.dev/aw/go-starter/internal/util"
-	"allaboutapps.dev/aw/go-starter/internal/util/db"
 	"github.com/aarondl/sqlboiler/v4/boil"
+	"github/chapool/go-wallet/internal/api/httperrors"
+	"github/chapool/go-wallet/internal/data/dto"
+	"github/chapool/go-wallet/internal/models"
+	"github/chapool/go-wallet/internal/util"
+	"github/chapool/go-wallet/internal/util/db"
 )
 
 func (s *Service) UpdatePushToken(ctx context.Context, request dto.UpdatePushTokenRequest) error {

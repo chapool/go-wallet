@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"allaboutapps.dev/aw/go-starter/internal/mailer/transport"
-	"allaboutapps.dev/aw/go-starter/internal/push/provider"
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/rs/zerolog"
+	"github/chapool/go-wallet/internal/mailer/transport"
+	"github/chapool/go-wallet/internal/push/provider"
+	"github/chapool/go-wallet/internal/util"
 	"golang.org/x/text/language"
 )
 

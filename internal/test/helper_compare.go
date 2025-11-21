@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/api/httperrors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/api/httperrors"
 )
 
 func CompareFileHashes(t *testing.T, expectedFilePath string, actualFilePath string) {

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/test"
-	"allaboutapps.dev/aw/go-starter/internal/util/command"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/test"
+	"github/chapool/go-wallet/internal/util/command"
 )
 
 func TestWithServer(t *testing.T) {

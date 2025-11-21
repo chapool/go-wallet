@@ -3,11 +3,11 @@ package auth
 import (
 	"net/http"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/data/dto"
-	"allaboutapps.dev/aw/go-starter/internal/types"
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/labstack/echo/v4"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/data/dto"
+	"github/chapool/go-wallet/internal/types"
+	"github/chapool/go-wallet/internal/util"
 )
 
 func PostRefreshRoute(s *api.Server) *echo.Route {

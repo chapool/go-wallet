@@ -5,14 +5,14 @@ import (
 	"net/http"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	"allaboutapps.dev/aw/go-starter/internal/metrics/users"
-	"allaboutapps.dev/aw/go-starter/internal/models"
-	"allaboutapps.dev/aw/go-starter/internal/test"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/config"
+	"github/chapool/go-wallet/internal/metrics/users"
+	"github/chapool/go-wallet/internal/models"
+	"github/chapool/go-wallet/internal/test"
 )
 
 func TestPprofEnabled(t *testing.T) {

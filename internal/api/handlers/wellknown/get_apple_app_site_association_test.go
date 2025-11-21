@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/api/httperrors"
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	"allaboutapps.dev/aw/go-starter/internal/test"
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/api/httperrors"
+	"github/chapool/go-wallet/internal/config"
+	"github/chapool/go-wallet/internal/test"
+	"github/chapool/go-wallet/internal/util"
 )
 
 func testGetWellKnown(t *testing.T, config config.Server, path string) {

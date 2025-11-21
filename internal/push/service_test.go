@@ -4,15 +4,15 @@ import (
 	"database/sql"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/data/mapper"
-	"allaboutapps.dev/aw/go-starter/internal/models"
-	"allaboutapps.dev/aw/go-starter/internal/push"
-	"allaboutapps.dev/aw/go-starter/internal/push/provider"
-	"allaboutapps.dev/aw/go-starter/internal/test"
-	"allaboutapps.dev/aw/go-starter/internal/test/fixtures"
 	"github.com/aarondl/sqlboiler/v4/boil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/data/mapper"
+	"github/chapool/go-wallet/internal/models"
+	"github/chapool/go-wallet/internal/push"
+	"github/chapool/go-wallet/internal/push/provider"
+	"github/chapool/go-wallet/internal/test"
+	"github/chapool/go-wallet/internal/test/fixtures"
 )
 
 func TestSendMessageSuccess(t *testing.T) {

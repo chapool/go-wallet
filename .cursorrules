@@ -1,0 +1,1101 @@
+# HD Wallet EVM 项目开发规范
+
+## 项目概述
+
+这是一个基于 go-starter 框架开发的 HD Wallet（分层确定性钱包）系统，仅支持 EVM 链。系统采用单一助记词 + keystore 加密存储，启动时密码解锁，用户私钥按需派生，不持久化存储。
+
+**核心设计原则**：
+1. **单一种子源**：系统只保存一个加密的助记词（keystore），所有地址都从此派生
+2. **启动时解锁**：服务启动时输入密码，解密助记词并生成种子，种子保存在内存中
+3. **零私钥存储**：用户私钥不保存，需要签名时从种子+路径临时计算
+4. **即时清除**：私钥使用后立即从内存清除
+5. **元数据存储**：数据库只保存地址、路径等元数据，不保存私钥
+
+## 架构规范
+
+### 分层架构
+
+严格遵循 go-starter 的分层架构：
+
+```
+API Layer (internal/api/handlers/wallet/)
+  ↓
+Service Layer (internal/wallet/)
+  ↓
+Model Layer (internal/models/) - SQLBoiler 生成
+  ↓
+Persistence Layer (internal/persistence/)
+```
+
+### Wire 依赖注入
+
+**必须遵循 Wire 规范**：
+
+1. **Provider 函数**：所有服务必须提供 Provider 函数
+   ```go
+   // ✅ 正确
+   func NewWalletService(db *sql.DB, seedManager *seed.Manager) (*Service, error) {
+       return &Service{db: db, seedManager: seedManager}, nil
+   }
+   
+   // ❌ 错误 - 不要使用 Init 方法
+   func (s *Server) InitWallet() error { ... }
+   ```
+
+2. **Wire 配置**：在 `internal/api/wire.go` 中注册所有 Provider
+   ```go
+   var walletServiceSet = wire.NewSet(
+       wallet.NewService,
+       wallet.NewKeystoreService,
+       wallet.NewSeedManager,
+       // ...
+   )
+   ```
+
+3. **Server 结构体**：在 `internal/api/server.go` 中声明服务字段
+   ```go
+   type Server struct {
+       // ...
+       Wallet *wallet.Service `wire:"-"`
+   }
+   ```
+
+4. **跳过 Wire**：使用 `wire:"-"` 标记需要手动初始化的组件（如 Echo、Router）
+
+## 目录结构规范
+
+### 钱包模块结构
+
+```
+internal/wallet/
+├── service.go                    # WalletService 主服务
+├── keystore/                     # Keystore 子模块
+│   ├── service.go
+│   ├── encrypt.go
+│   ├── decrypt.go
+│   └── types.go
+├── seed/                         # 种子管理
+│   ├── manager.go
+│   └── types.go
+├── address/                      # 地址生成
+│   ├── service.go
+│   ├── evm.go
+│   └── bip44.go
+├── signer/                       # 交易签名
+│   ├── service.go
+│   └── evm.go
+├── scan/                         # 区块链扫描
+│   ├── service.go
+│   ├── scanner.go
+│   ├── reorg.go
+│   └── analyzer.go
+├── deposit/                      # 充值处理
+├── withdraw/                     # 提现处理
+├── collect/                      # 归集
+├── rebalance/                    # 资金调度
+├── balance/                      # 余额管理
+├── hotwallet/                    # 热钱包管理
+└── types.go
+```
+
+### API Handlers 结构
+
+```
+internal/api/handlers/wallet/
+├── post_create_wallet.go
+├── get_wallet_address.go
+├── post_sign_transaction.go
+├── get_deposits.go
+├── post_withdraw.go
+├── get_balance_total.go
+└── ...
+```
+
+**命名规范**：
+- Handler 文件：`{method}_{route_name}.go`（如 `post_create_wallet.go`）
+- Handler 函数：`{method}{RouteName}Handler`（如 `postCreateWalletHandler`）
+- Route 函数：`{Method}{RouteName}Route`（如 `PostCreateWalletRoute`）
+
+## 编码规范
+
+### Go 代码规范
+
+1. **遵循 Go 标准**：使用 `gofmt`、`golint`、`golangci-lint`
+2. **错误处理**：始终检查错误，使用 `errors.Wrap` 或 `fmt.Errorf` 添加上下文
+3. **上下文传递**：所有服务方法第一个参数必须是 `context.Context`
+4. **接口定义**：接口定义在服务包内，使用小写接口名（如 `service`），实现使用大写（如 `Service`）
+
+### 命名规范
+
+**包名**：
+- 使用小写、简短、有意义的名称
+- 避免下划线和混合大小写
+- 示例：`wallet`, `keystore`, `address`, `signer`
+
+**类型名**：
+- 使用驼峰命名，首字母大写（导出）
+- 接口名通常以 `er` 结尾（如 `Signer`, `Manager`）
+- 示例：`WalletService`, `KeystoreService`, `SeedManager`
+
+**函数名**：
+- Provider 函数：`New{Type}`（如 `NewWalletService`）
+- 服务方法：使用动词开头（如 `CreateWallet`, `GetBalance`）
+- 私有函数：小写开头（如 `derivePrivateKey`）
+
+**变量名**：
+- 使用驼峰命名
+- 简短但有意义
+- 避免单字母变量（除了循环变量 `i`, `j`, `k`）
+
+### 错误处理
+
+#### Service 层错误处理
+
+```go
+// ✅ 正确 - 使用 errors 包
+import "github.com/pkg/errors"
+
+func (s *Service) CreateWallet(ctx context.Context, userID string, chainType string) (*Wallet, error) {
+    // 业务验证（不是参数验证）
+    if chainType != "evm" {
+        return nil, ErrInvalidChainType
+    }
+    
+    // 数据库操作
+    wallet, err := models.Wallets(
+        models.WalletWhere.UserID.EQ(userID),
+        models.WalletWhere.ChainType.EQ(chainType),
+    ).One(ctx, s.db)
+    
+    if err != nil {
+        if errors.Is(err, sql.ErrNoRows) {
+            return nil, ErrWalletNotFound
+        }
+        return nil, errors.Wrap(err, "failed to get wallet from database")
+    }
+    
+    return wallet, nil
+}
+
+// ✅ 正确 - 定义错误变量
+var (
+    ErrWalletNotFound = errors.New("wallet not found")
+    ErrInvalidPassword = errors.New("invalid password")
+    ErrInvalidChainType = errors.New("invalid chain type")
+    ErrInsufficientBalance = errors.New("insufficient balance")
+)
+
+// ✅ 正确 - 事务处理
+func (s *Service) ProcessWithdraw(ctx context.Context, req *WithdrawRequest) error {
+    return s.db.Transaction(func(tx *sql.Tx) error {
+        // 原子操作
+        if err := s.deductBalance(ctx, tx, req); err != nil {
+            return errors.Wrap(err, "failed to deduct balance")
+        }
+        if err := s.createWithdrawRecord(ctx, tx, req); err != nil {
+            return errors.Wrap(err, "failed to create withdraw record")
+        }
+        return nil
+    })
+}
+
+// ❌ 错误 - 不要忽略错误
+result, _ := someFunction()
+```
+
+### 日志规范
+
+使用 `zerolog` 进行日志记录：
+
+```go
+import "github.com/rs/zerolog/log"
+
+// ✅ 正确 - 结构化日志
+log.Info().
+    Str("user_id", userID).
+    Str("chain_type", chainType).
+    Str("address", address).
+    Msg("Wallet created successfully")
+
+// ✅ 正确 - 错误日志
+log.Error().
+    Err(err).
+    Str("operation", "create_wallet").
+    Msg("Failed to create wallet")
+
+// ❌ 错误 - 不要使用 fmt.Printf
+fmt.Printf("Wallet created: %s\n", address)
+```
+
+**日志级别**：
+- `log.Debug()`: 详细调试信息
+- `log.Info()`: 关键操作、状态变更
+- `log.Warn()`: 警告信息、异常情况
+- `log.Error()`: 系统错误、交易失败
+
+## 安全规范
+
+### 密钥管理
+
+**绝对禁止**：
+- ❌ 在任何日志中记录私钥、助记词、种子
+- ❌ 将私钥保存到数据库
+- ❌ 将私钥保存到文件
+- ❌ 在错误消息中暴露敏感信息
+
+**必须遵守**：
+- ✅ 私钥使用后立即从内存清除
+- ✅ 使用 `memguard` 或类似库保护敏感内存
+- ✅ 所有密钥操作记录审计日志（不记录敏感内容）
+- ✅ 密码验证失败不暴露具体原因
+
+```go
+// ✅ 正确 - 私钥使用后清除
+privateKey := derivePrivateKey(seed, path)
+defer func() {
+    // 清除私钥
+    for i := range privateKey {
+        privateKey[i] = 0
+    }
+}()
+
+// 使用私钥签名
+signedTx := signTransaction(privateKey, tx)
+return signedTx
+```
+
+### 数据库安全
+
+- ✅ 使用参数化查询，防止 SQL 注入
+- ✅ 敏感字段加密存储
+- ✅ 数据库连接使用 TLS
+- ✅ 定期备份 keystore 表
+
+```go
+// ✅ 正确 - 参数化查询
+rows, err := db.QueryContext(ctx, 
+    "SELECT * FROM wallets WHERE user_id = $1 AND chain_type = $2",
+    userID, chainType)
+
+// ❌ 错误 - SQL 注入风险
+query := fmt.Sprintf("SELECT * FROM wallets WHERE user_id = '%s'", userID)
+```
+
+## API 接口定义规范（Swagger-First）
+
+### API 开发流程
+
+**必须遵循 Swagger-First 开发模式**：
+
+1. **定义 API 规范**（第一步）
+   - 在 `api/paths/` 中定义路径和参数
+   - 在 `api/definitions/` 中定义请求/响应类型
+   - 在 `api/config/main.yml` 中添加引用
+
+2. **生成代码**（第二步）
+   ```bash
+   make swagger  # 根据 API 定义生成 Go 类型文件
+   ```
+
+3. **实现 Handler**（第三步）
+   - 在生成的类型基础上编写 handler 逻辑
+   - 使用生成的类型，不要使用 `map[string]interface{}`
+
+### 复合响应类型定义
+
+**重要**：对于包含多个字段的复合响应，必须定义具体的类型名称：
+
+```yaml
+# ❌ 错误：匿名响应对象
+responses:
+  "200":
+    description: Success
+    schema:
+      type: object
+      properties:
+        data:
+          $ref: "#/definitions/WalletResponse"
+        balance:
+          $ref: "#/definitions/BalanceResponse"
+
+# ✅ 正确：定义具体类型名称
+WalletWithBalanceResponse:
+  type: object
+  required: [data, balance]
+  properties:
+    data:
+      $ref: "#/definitions/WalletResponse"
+    balance:
+      $ref: "#/definitions/BalanceResponse"
+```
+
+然后在 `api/config/main.yml` 中添加引用：
+```yaml
+definitions:
+  walletWithBalanceResponse:
+    $ref: "../definitions/wallet.yml#/definitions/WalletWithBalanceResponse"
+```
+
+### 参数验证策略
+
+**根据接口类型选择正确的验证方法**：
+
+```go
+// 场景1: 只有请求体 (POST /wallet/create)
+var request types.PostCreateWalletPayload
+if err := util.BindAndValidateBody(c, &request); err != nil {
+    return err
+}
+
+// 场景2: 只有路径参数 (GET /wallet/{wallet_id})
+params := wallet.NewGetWalletParams()
+if err := util.BindAndValidatePathParams(c, &params); err != nil {
+    return err
+}
+walletID := params.WalletID
+
+// 场景3: 只有查询参数 (GET /wallet/deposits?user_id=xxx)
+params := wallet.NewGetDepositsParams()
+if err := util.BindAndValidateQueryParams(c, &params); err != nil {
+    return err
+}
+
+// 场景4: 路径+查询参数 (GET /wallet/{wallet_id}/balance?token=USDT)
+params := wallet.NewGetWalletBalanceParams()
+if err := util.BindAndValidatePathAndQueryParams(c, &params); err != nil {
+    return err
+}
+
+// 场景5: 复合参数 (路径+请求体等)
+params := wallet.NewCreateWithdrawParams()
+if err := params.BindRequest(c.Request(), nil); err != nil {
+    return err  // 同时验证路径参数和请求体
+}
+walletID := params.WalletID
+request := params.Request
+```
+
+### 参数验证分层原则
+
+**重要原则**：
+- ✅ **Handler 层**：统一处理所有参数验证和类型转换
+- ❌ **Service 层**：不应包含重复的参数验证逻辑（如 `validateRequest`, `validateConfig` 等方法）
+
+```go
+// ✅ 正确 - Handler 层验证
+func postCreateWalletHandler(s *api.Server) echo.HandlerFunc {
+    return func(c echo.Context) error {
+        var body types.PostCreateWalletPayload
+        if err := util.BindAndValidateBody(c, &body); err != nil {
+            return err  // 参数验证在 Handler 层完成
+        }
+        
+        // 直接调用 Service，不再验证
+        wallet, err := s.Wallet.CreateWallet(ctx, body.UserID, body.ChainType)
+        // ...
+    }
+}
+
+// ❌ 错误 - Service 层重复验证
+func (s *Service) CreateWallet(ctx context.Context, req *CreateWalletRequest) (*Wallet, error) {
+    // 不要在这里再次验证 req.UserID、req.ChainType 等
+    // 这些应该在 Handler 层已经验证过了
+    if err := s.validateRequest(req); err != nil {  // ❌ 不要这样做
+        return nil, err
+    }
+    // ...
+}
+```
+
+### 返回响应规范
+
+```go
+// ✅ 正确 - 使用 util.ValidateAndReturn
+response := &types.CreateWalletResponse{
+    ID: wallet.ID,
+    Address: wallet.Address,
+}
+return util.ValidateAndReturn(c, http.StatusOK, response)
+
+// ✅ 正确 - 复合响应
+response := &types.WalletWithBalanceResponse{
+    Data: walletResponse,
+    Balance: balanceResponse,
+}
+return util.ValidateAndReturn(c, http.StatusOK, response)
+
+// ❌ 错误 - 直接使用 c.JSON
+return c.JSON(http.StatusOK, response)  // 不要这样做
+```
+
+## 数据库规范
+
+### 数据库开发流程
+
+1. **编写 Migration**（第一步）
+   - 在 `migrations/` 目录下编写数据库迁移文件
+   - 文件名格式：`YYYYMMDDHHMMSS-description.sql`
+
+2. **生成代码**（第二步）
+   ```bash
+   make sql  # 根据 migrations 生成相应的 Go 文件
+   ```
+
+### SQLBoiler 模型
+
+- ✅ 所有模型由 SQLBoiler 自动生成，**不要手动修改**
+- ✅ 模型文件在 `internal/models/` 目录
+- ✅ 使用模型提供的方法进行数据库操作
+
+```go
+// ✅ 正确 - 使用 SQLBoiler 模型
+import "allaboutapps.dev/aw/go-starter/internal/models"
+
+wallet, err := models.Wallets(
+    models.WalletWhere.UserID.EQ(userID),
+    models.WalletWhere.ChainType.EQ(chainType),
+).One(ctx, db)
+
+// ✅ 正确 - 使用模型方法
+wallet := &models.Wallet{
+    UserID: userID,
+    Address: address,
+    ChainType: chainType,
+}
+err := wallet.Insert(ctx, db, boil.Infer())
+
+// ❌ 错误 - 不要直接写 SQL（除非必要）
+rows, err := db.Query("SELECT * FROM wallets WHERE ...")
+```
+
+### 数据库迁移
+
+- ✅ 迁移文件在 `migrations/` 目录
+- ✅ 文件名格式：`YYYYMMDDHHMMSS-description.sql`
+- ✅ 使用 `-- +migrate Up` 和 `-- +migrate Down` 标记
+
+```sql
+-- +migrate Up
+CREATE TABLE wallets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    address VARCHAR(255) NOT NULL,
+    chain_type VARCHAR(50) NOT NULL,
+    derivation_path VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT wallets_user_chain_unique UNIQUE (user_id, chain_type)
+);
+
+CREATE INDEX idx_wallets_user_id ON wallets(user_id);
+CREATE INDEX idx_wallets_address ON wallets(address);
+
+-- +migrate Down
+DROP INDEX IF EXISTS idx_wallets_address;
+DROP INDEX IF EXISTS idx_wallets_user_id;
+DROP TABLE IF EXISTS wallets;
+```
+
+### 数据库设计原则
+
+1. **表设计**：
+   - 使用 UUID 作为主键（`uuid_generate_v4()`）
+   - 添加 `created_at` 和 `updated_at` 时间戳
+   - 使用外键约束保证数据完整性
+   - 添加必要的唯一约束和索引
+
+2. **索引设计**：
+   - 为常用查询字段添加索引
+   - 为外键字段添加索引
+   - 为组合查询添加组合索引
+
+3. **数据类型**：
+   - 金额使用 `TEXT` 类型存储（避免精度丢失）
+   - 时间使用 `TIMESTAMPTZ` 类型
+   - 布尔值使用 `BOOLEAN` 类型
+   - 枚举使用 `VARCHAR` 或创建枚举类型
+
+## 服务接口设计
+
+### 服务接口规范
+
+所有服务必须定义接口（在服务包内）：
+
+```go
+// internal/wallet/service.go
+package wallet
+
+type Service interface {
+    CreateWallet(ctx context.Context, userID string, chainType string) (*Wallet, error)
+    GetWallet(ctx context.Context, userID string, chainType string) (*Wallet, error)
+}
+
+// 实现
+type service struct {
+    db *sql.DB
+    // ...
+}
+
+func NewService(db *sql.DB, ...) (Service, error) {
+    return &service{db: db}, nil
+}
+```
+
+### 方法签名规范
+
+```go
+// ✅ 正确 - 第一个参数是 context.Context
+func (s *Service) CreateWallet(ctx context.Context, userID string, chainType string) (*Wallet, error)
+
+// ✅ 正确 - 返回错误
+func (s *Service) GetBalance(ctx context.Context, userID string) (*Balance, error)
+
+// ❌ 错误 - 缺少 context
+func (s *Service) CreateWallet(userID string) (*Wallet, error)
+```
+
+## API Handler 规范
+
+### Handler 文件组织
+
+**每个接口单独一个文件**，参考以下模式：
+
+```
+internal/api/handlers/wallet/
+├── handler.go                    # Handler 结构体和 NewHandler 函数
+├── post_create_wallet.go        # POST /wallet/create
+├── get_wallet_address.go        # GET /wallet/address
+├── get_wallet_by_id.go          # GET /wallet/{wallet_id}
+├── post_withdraw.go             # POST /wallet/withdraw
+├── get_deposits.go              # GET /wallet/deposits
+└── get_balance.go               # GET /wallet/balance
+```
+
+**命名规范**：
+- Handler 文件：`{method}_{resource}.go`（如 `post_create_wallet.go`）
+- Handler 函数：`{method}{Resource}Handler`（如 `postCreateWalletHandler`）
+- Route 函数：`{Method}{Resource}Route`（如 `PostCreateWalletRoute`）
+
+### Handler 结构
+
+遵循 go-starter 的 handler 模式：
+
+```go
+// internal/api/handlers/wallet/handler.go
+package wallet
+
+import (
+    "allaboutapps.dev/aw/go-starter/internal/api"
+)
+
+type Handler struct {
+    server *api.Server
+}
+
+func NewHandler(s *api.Server) *Handler {
+    return &Handler{server: s}
+}
+
+// internal/api/handlers/wallet/post_create_wallet.go
+package wallet
+
+import (
+    "net/http"
+    "allaboutapps.dev/aw/go-starter/internal/api"
+    "allaboutapps.dev/aw/go-starter/internal/util"
+    "github.com/labstack/echo/v4"
+)
+
+func PostCreateWalletRoute(s *api.Server) *echo.Route {
+    return s.Router.APIV1Wallet.POST("/create", postCreateWalletHandler(s))
+}
+
+func postCreateWalletHandler(s *api.Server) echo.HandlerFunc {
+    return func(c echo.Context) error {
+        ctx := c.Request().Context()
+        log := util.LogFromContext(ctx)
+        
+        // 参数验证（Handler 层）
+        var body types.PostCreateWalletPayload
+        if err := util.BindAndValidateBody(c, &body); err != nil {
+            return err
+        }
+        
+        // 调用 Service 层
+        wallet, err := s.Wallet.CreateWallet(ctx, body.UserID, body.ChainType)
+        if err != nil {
+            log.Debug().Err(err).Msg("Failed to create wallet")
+            return err
+        }
+        
+        // 返回响应
+        response := wallet.ToTypes()
+        return util.ValidateAndReturn(c, http.StatusOK, response)
+    }
+}
+```
+
+### 错误处理规范
+
+**Handler 层错误处理**：
+
+```go
+func postCreateWalletHandler(s *api.Server) echo.HandlerFunc {
+    return func(c echo.Context) error {
+        ctx := c.Request().Context()
+        log := util.LogFromContext(ctx)
+        
+        // 参数验证错误 - 返回 400
+        var body types.PostCreateWalletPayload
+        if err := util.BindAndValidateBody(c, &body); err != nil {
+            return err  // util.BindAndValidateBody 会自动返回 400
+        }
+        
+        // 业务逻辑错误 - 返回具体错误码
+        wallet, err := s.Wallet.CreateWallet(ctx, body.UserID, body.ChainType)
+        if err != nil {
+            // 根据错误类型返回不同状态码
+            if errors.Is(err, wallet.ErrWalletNotFound) {
+                return httperrors.NewHTTPError(http.StatusNotFound, "Wallet not found")
+            }
+            if errors.Is(err, wallet.ErrInvalidChainType) {
+                return httperrors.NewHTTPValidationError(
+                    http.StatusBadRequest,
+                    "Invalid chain type",
+                    map[string]string{"chain_type": "must be one of: evm"},
+                )
+            }
+            
+            log.Error().Err(err).Msg("Failed to create wallet")
+            return httperrors.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+        }
+        
+        return util.ValidateAndReturn(c, http.StatusOK, wallet.ToTypes())
+    }
+}
+```
+
+### 路由注册
+
+在 `internal/api/handlers/handlers.go` 中注册路由：
+
+```go
+func AttachAllRoutes(s *api.Server) {
+    s.Router.Routes = []*echo.Route{
+        // ... 现有路由
+        wallet.PostCreateWalletRoute(s),
+        wallet.GetWalletAddressRoute(s),
+        wallet.PostWithdrawRoute(s),
+        wallet.GetDepositsRoute(s),
+        // ...
+    }
+}
+```
+
+## 钱包模块特定规范
+
+### 种子管理
+
+```go
+// ✅ 正确 - 种子保存在内存，线程安全
+type Manager struct {
+    seed []byte
+    mu   sync.RWMutex
+    initialized bool
+}
+
+func (m *Manager) GetSeed() []byte {
+    m.mu.RLock()
+    defer m.mu.RUnlock()
+    
+    // 返回副本，避免外部修改
+    seedCopy := make([]byte, len(m.seed))
+    copy(seedCopy, m.seed)
+    return seedCopy
+}
+```
+
+### 私钥派生和清除
+
+```go
+// ✅ 正确 - 临时派生，使用后清除
+func DerivePrivateKey(seed []byte, path string) ([]byte, error) {
+    privateKey := deriveFromSeed(seed, path)
+    // 使用私钥
+    return privateKey, nil
+}
+
+// 调用方必须清除
+privateKey, err := DerivePrivateKey(seed, path)
+if err != nil {
+    return err
+}
+defer func() {
+    for i := range privateKey {
+        privateKey[i] = 0
+    }
+}()
+```
+
+### 地址生成
+
+```go
+// ✅ 正确 - 只返回地址，不保存私钥
+func DeriveAddress(seed []byte, path string, chainType string) (string, error) {
+    privateKey := derivePrivateKey(seed, path)
+    defer clearPrivateKey(privateKey)
+    
+    address := privateKeyToAddress(privateKey)
+    return address, nil
+}
+```
+
+### Nonce 管理
+
+```go
+// ✅ 正确 - 原子性更新 nonce
+func MarkNonceUsed(ctx context.Context, address string, chainID int, usedNonce int) error {
+    result, err := db.ExecContext(ctx, `
+        UPDATE wallet_nonces 
+        SET nonce = nonce + 1, 
+            last_used_at = NOW(),
+            updated_at = NOW()
+        WHERE address = $1 AND chain_id = $2 AND nonce = $3
+        RETURNING nonce
+    `, address, chainID, usedNonce)
+    
+    if err != nil {
+        return errors.Wrap(err, "failed to mark nonce as used")
+    }
+    
+    // 检查是否更新成功
+    rowsAffected, _ := result.RowsAffected()
+    if rowsAffected == 0 {
+        return errors.New("nonce mismatch or already used")
+    }
+    
+    return nil
+}
+```
+
+## 测试规范
+
+### 单元测试
+
+```go
+// internal/wallet/service_test.go
+package wallet
+
+import (
+    "context"
+    "testing"
+    "allaboutapps.dev/aw/go-starter/internal/test"
+)
+
+func TestCreateWallet(t *testing.T) {
+    test.WithTestDatabase(t, func(db *sql.DB) {
+        ctx := context.Background()
+        service := NewService(db, ...)
+        
+        wallet, err := service.CreateWallet(ctx, "user-123", "evm")
+        assert.NoError(t, err)
+        assert.NotNil(t, wallet)
+        assert.Equal(t, "evm", wallet.ChainType)
+    })
+}
+```
+
+### 集成测试
+
+- 使用 `internal/test` 包的测试工具
+- 使用 IntegreSQL 进行数据库隔离测试
+- 测试完整的业务流程
+
+## 类型定义规范
+
+### API 类型（Swagger 生成）
+
+**重要**：所有 API 类型通过 Swagger 生成，不要手动创建。
+
+1. **在 `api/definitions/` 中定义类型**：
+```yaml
+# api/definitions/wallet.yml
+definitions:
+  PostCreateWalletPayload:
+    type: object
+    required: [chain_type]
+    properties:
+      chain_type:
+        type: string
+        enum: [evm]
+        example: evm
+  
+  CreateWalletResponse:
+    type: object
+    required: [id, address, chain_type]
+    properties:
+      id:
+        type: string
+        format: uuid
+      address:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      chain_type:
+        type: string
+        example: evm
+      derivation_path:
+        type: string
+        example: "m/44'/60'/0'/0/0"
+```
+
+2. **在 `api/config/main.yml` 中添加引用**：
+```yaml
+definitions:
+  postCreateWalletPayload:
+    $ref: "../definitions/wallet.yml#/definitions/PostCreateWalletPayload"
+  createWalletResponse:
+    $ref: "../definitions/wallet.yml#/definitions/CreateWalletResponse"
+```
+
+3. **运行 `make swagger` 生成 Go 类型**：
+```bash
+make swagger  # 生成 internal/types/wallet/*.go
+```
+
+4. **在 Handler 中使用生成的类型**：
+```go
+// ✅ 正确 - 使用生成的类型
+var body types.PostCreateWalletPayload
+if err := util.BindAndValidateBody(c, &body); err != nil {
+    return err
+}
+
+// ❌ 错误 - 不要手动定义 API 类型
+type PostCreateWalletPayload struct {
+    ChainType string `json:"chain_type"`
+}
+```
+
+### 服务类型
+
+服务内部类型定义在服务包的 `types.go`：
+
+```go
+// internal/wallet/types.go
+package wallet
+
+// Wallet 服务内部类型
+type Wallet struct {
+    ID            string
+    UserID        string
+    Address       string
+    ChainType     string
+    DerivationPath string
+    AddressIndex  int
+    CreatedAt     time.Time
+    UpdatedAt     time.Time
+}
+
+// ToTypes 转换为 API 类型
+func (w *Wallet) ToTypes() *types.CreateWalletResponse {
+    return &types.CreateWalletResponse{
+        ID:            w.ID,
+        Address:       w.Address,
+        ChainType:     w.ChainType,
+        DerivationPath: w.DerivationPath,
+    }
+}
+```
+
+## 配置规范
+
+### 环境变量
+
+所有配置通过环境变量，使用 `internal/config` 包：
+
+```go
+// internal/config/wallet_config.go
+package config
+
+type Wallet struct {
+    KeystoreVersion int
+    ScryptN         int
+    ScryptR         int
+    ScryptP         int
+    DefaultDeviceName string
+}
+```
+
+### 配置加载
+
+```go
+// 在 config.Server 中添加 Wallet 配置
+type Server struct {
+    // ...
+    Wallet config.Wallet
+}
+```
+
+## 代码审查检查清单
+
+在提交代码前检查：
+
+- [ ] 遵循 Wire 依赖注入规范
+- [ ] 所有服务方法第一个参数是 `context.Context`
+- [ ] 错误处理完整，使用 `errors.Wrap` 添加上下文
+- [ ] 使用结构化日志（zerolog），不记录敏感信息
+- [ ] 私钥使用后立即清除
+- [ ] 数据库查询使用参数化查询
+- [ ] 使用 SQLBoiler 模型，不直接写 SQL
+- [ ] 所有导出函数和类型有注释
+- [ ] 通过 `golangci-lint` 检查
+- [ ] 单元测试覆盖核心逻辑
+- [ ] API Handler 遵循 go-starter 模式
+
+## 构建和开发流程
+
+### Make 命令
+
+```bash
+# 完整构建流程
+make build          # 默认构建：sql + swagger + go-build + go-lint
+make all            # 完整构建 + 测试
+
+# API 开发
+make swagger        # 生成 API 代码（从 api/ 目录生成 internal/types/）
+make watch-swagger  # 监听 API 文件变化
+
+# 数据库开发
+make sql            # 生成数据库代码（从 migrations/ 生成 internal/models/）
+make sql-reset      # 重置开发数据库
+make watch-sql      # 监听 SQL 文件变化
+
+# 测试
+make test           # 运行测试
+make watch-tests    # 监听文件变化运行测试
+```
+
+### 开发流程
+
+1. **API 开发流程**：
+   - 在 `api/paths/` 和 `api/definitions/` 中定义接口
+   - 运行 `make swagger` 生成类型
+   - 实现 Handler 逻辑
+
+2. **数据库开发流程**：
+   - 在 `migrations/` 中编写迁移文件
+   - 运行 `make sql` 生成模型
+   - 在 Service 中使用生成的模型
+
+## 常见错误避免
+
+### ❌ 不要这样做
+
+```go
+// ❌ 错误 - 私钥保存到变量
+privateKey := derivePrivateKey(seed, path)
+s.privateKey = privateKey  // 不要保存！
+
+// ❌ 错误 - 日志记录私钥
+log.Info().Str("private_key", hex.EncodeToString(privateKey)).Msg("...")
+
+// ❌ 错误 - SQL 注入
+query := fmt.Sprintf("SELECT * FROM wallets WHERE user_id = '%s'", userID)
+
+// ❌ 错误 - 忽略错误
+result, _ := someFunction()
+
+// ❌ 错误 - 缺少 context
+func CreateWallet(userID string) (*Wallet, error)
+
+// ❌ 错误 - 不使用 Wire
+func (s *Server) InitWallet() error
+
+// ❌ 错误 - 先写 Handler 再补 API 定义
+// 应该先定义 API，再生成代码，最后实现 Handler
+
+// ❌ 错误 - 使用 map[string]interface{} 而不是生成的类型
+return c.JSON(http.StatusOK, map[string]interface{}{
+    "id": wallet.ID,
+    "address": wallet.Address,
+})
+
+// ❌ 错误 - Service 层重复验证参数
+func (s *Service) CreateWallet(ctx context.Context, req *Request) (*Wallet, error) {
+    if req.UserID == "" {  // ❌ 参数验证应该在 Handler 层
+        return nil, errors.New("user_id is required")
+    }
+}
+
+// ❌ 错误 - 直接使用 c.JSON 返回响应
+return c.JSON(http.StatusOK, response)  // 应该使用 util.ValidateAndReturn
+```
+
+### ✅ 应该这样做
+
+```go
+// ✅ 正确 - 临时使用，立即清除
+privateKey := derivePrivateKey(seed, path)
+defer clearPrivateKey(privateKey)
+signedTx := signTransaction(privateKey, tx)
+
+// ✅ 正确 - 只记录地址
+log.Info().Str("address", address).Msg("Wallet created")
+
+// ✅ 正确 - 参数化查询
+rows, err := db.QueryContext(ctx, "SELECT * FROM wallets WHERE user_id = $1", userID)
+
+// ✅ 正确 - 检查错误
+result, err := someFunction()
+if err != nil {
+    return errors.Wrap(err, "failed to ...")
+}
+
+// ✅ 正确 - 包含 context
+func CreateWallet(ctx context.Context, userID string) (*Wallet, error)
+
+// ✅ 正确 - 使用 Wire Provider
+func NewWalletService(db *sql.DB) (*Service, error) {
+    return &Service{db: db}, nil
+}
+
+// ✅ 正确 - API 优先：先定义，再生成，最后实现
+// 1. 在 api/definitions/ 中定义类型
+// 2. 运行 make swagger 生成代码
+// 3. 实现 Handler
+
+// ✅ 正确 - 使用生成的类型
+response := &types.CreateWalletResponse{
+    ID: wallet.ID,
+    Address: wallet.Address,
+}
+return util.ValidateAndReturn(c, http.StatusOK, response)
+
+// ✅ 正确 - Handler 层验证参数，Service 层只处理业务逻辑
+func postCreateWalletHandler(s *api.Server) echo.HandlerFunc {
+    var body types.PostCreateWalletPayload
+    if err := util.BindAndValidateBody(c, &body); err != nil {
+        return err  // 参数验证在 Handler 层
+    }
+    // Service 层不再验证参数
+    wallet, err := s.Wallet.CreateWallet(ctx, body.UserID, body.ChainType)
+}
+```
+
+## 参考资料
+
+- [go-starter 文档](https://github.com/allaboutapps/go-starter)
+- [Wire 依赖注入](https://github.com/google/wire)
+- [SQLBoiler 文档](https://github.com/volatiletech/sqlboiler)
+- [Echo 框架文档](https://echo.labstack.com/)
+- [设计文档](./docs/hd-wallet-design.md)
+
+---
+
+**重要提醒**：
+- 始终遵循 go-starter 的架构模式
+- 安全第一：私钥绝不持久化，使用后立即清除
+- 使用 Wire 进行依赖注入，不要手动初始化
+- 所有数据库操作使用 SQLBoiler 模型
+- 遵循项目的错误处理和日志规范
+

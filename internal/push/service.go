@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"allaboutapps.dev/aw/go-starter/internal/data/dto"
-	"allaboutapps.dev/aw/go-starter/internal/models"
-	"allaboutapps.dev/aw/go-starter/internal/util"
+	"github/chapool/go-wallet/internal/data/dto"
+	"github/chapool/go-wallet/internal/models"
+	"github/chapool/go-wallet/internal/util"
 )
 
 type ProviderType string

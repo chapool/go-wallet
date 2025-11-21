@@ -3,9 +3,9 @@ package util_test
 import (
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"github/chapool/go-wallet/internal/util"
 )
 
 func TestLogLevelFromString(t *testing.T) {

@@ -1,6 +1,6 @@
 package hashing
 
-import "allaboutapps.dev/aw/go-starter/internal/util"
+import "github/chapool/go-wallet/internal/util"
 
 var (
 	// DefaultArgon2Params represents Argon2ID parameter recommendations in accordance with:

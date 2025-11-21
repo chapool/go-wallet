@@ -3,13 +3,13 @@ package auth
 import (
 	"net/http"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/api/router/templates"
-	"allaboutapps.dev/aw/go-starter/internal/types/auth"
-	"allaboutapps.dev/aw/go-starter/internal/util/url"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/api/router/templates"
+	"github/chapool/go-wallet/internal/types/auth"
+	"github/chapool/go-wallet/internal/util/url"
 
-	"allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/labstack/echo/v4"
+	"github/chapool/go-wallet/internal/util"
 )
 
 func GetCompleteRegisterRoute(s *api.Server) *echo.Route {

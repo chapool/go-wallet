@@ -3,10 +3,10 @@ package db_test
 import (
 	"fmt"
 
-	"allaboutapps.dev/aw/go-starter/internal/models"
-	"allaboutapps.dev/aw/go-starter/internal/util/db"
 	"github.com/aarondl/sqlboiler/v4/queries"
 	"github.com/aarondl/sqlboiler/v4/queries/qm"
+	"github/chapool/go-wallet/internal/models"
+	"github/chapool/go-wallet/internal/util/db"
 )
 
 type PublicName struct {

@@ -8,11 +8,11 @@ import (
 	"sync"
 	"testing"
 
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	"allaboutapps.dev/aw/go-starter/internal/test"
-	pUtil "allaboutapps.dev/aw/go-starter/internal/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github/chapool/go-wallet/internal/config"
+	"github/chapool/go-wallet/internal/test"
+	pUtil "github/chapool/go-wallet/internal/util"
 )
 
 func TestWithTestDatabaseConcurrentUsage(t *testing.T) {

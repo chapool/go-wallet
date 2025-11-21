@@ -2,12 +2,12 @@
 package handlers
 
 import (
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/api/handlers/auth"
-	"allaboutapps.dev/aw/go-starter/internal/api/handlers/common"
-	"allaboutapps.dev/aw/go-starter/internal/api/handlers/push"
-	"allaboutapps.dev/aw/go-starter/internal/api/handlers/wellknown"
 	"github.com/labstack/echo/v4"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/api/handlers/auth"
+	"github/chapool/go-wallet/internal/api/handlers/common"
+	"github/chapool/go-wallet/internal/api/handlers/push"
+	"github/chapool/go-wallet/internal/api/handlers/wellknown"
 )
 
 func AttachAllRoutes(s *api.Server) {

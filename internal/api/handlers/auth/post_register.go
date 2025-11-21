@@ -3,13 +3,13 @@ package auth
 import (
 	"net/http"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/data/dto"
-	"allaboutapps.dev/aw/go-starter/internal/types"
-	"allaboutapps.dev/aw/go-starter/internal/util"
-	"allaboutapps.dev/aw/go-starter/internal/util/url"
 	"github.com/go-openapi/swag"
 	"github.com/labstack/echo/v4"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/data/dto"
+	"github/chapool/go-wallet/internal/types"
+	"github/chapool/go-wallet/internal/util"
+	"github/chapool/go-wallet/internal/util/url"
 )
 
 func PostRegisterRoute(s *api.Server) *echo.Route {

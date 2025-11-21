@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"allaboutapps.dev/aw/go-starter/internal/auth"
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	"allaboutapps.dev/aw/go-starter/internal/i18n"
-	"allaboutapps.dev/aw/go-starter/internal/mailer"
-	"allaboutapps.dev/aw/go-starter/internal/persistence"
-	"allaboutapps.dev/aw/go-starter/internal/push"
-	"allaboutapps.dev/aw/go-starter/internal/push/provider"
 	"github.com/dropbox/godropbox/time2"
 	"github.com/rs/zerolog/log"
+	"github/chapool/go-wallet/internal/auth"
+	"github/chapool/go-wallet/internal/config"
+	"github/chapool/go-wallet/internal/i18n"
+	"github/chapool/go-wallet/internal/mailer"
+	"github/chapool/go-wallet/internal/persistence"
+	"github/chapool/go-wallet/internal/push"
+	"github/chapool/go-wallet/internal/push/provider"
 )
 
 // PROVIDERS - define here only providers that for various reasons (e.g. cyclic dependency) can't live in their corresponding packages

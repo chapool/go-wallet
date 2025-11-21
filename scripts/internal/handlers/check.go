@@ -14,10 +14,10 @@ import (
 	"strings"
 	"sync"
 
-	"allaboutapps.dev/aw/go-starter/internal/api"
-	"allaboutapps.dev/aw/go-starter/internal/api/router"
-	"allaboutapps.dev/aw/go-starter/internal/config"
-	"allaboutapps.dev/aw/go-starter/internal/types"
+	"github/chapool/go-wallet/internal/api"
+	"github/chapool/go-wallet/internal/api/router"
+	"github/chapool/go-wallet/internal/config"
+	"github/chapool/go-wallet/internal/types"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
