@@ -18,18 +18,63 @@ import (
 	"github/chapool/go-wallet/internal/metrics"
 	"github/chapool/go-wallet/internal/push"
 	"github/chapool/go-wallet/internal/util"
+	"github/chapool/go-wallet/internal/wallet"
+	"github/chapool/go-wallet/internal/wallet/deposit"
+	"github/chapool/go-wallet/internal/wallet/scan"
 
 	// Import postgres driver for database/sql package
 	_ "github.com/lib/pq"
 )
 
+// WalletService interface for wallet operations
+type WalletService interface {
+	CreateWallet(ctx context.Context, userID string, chainID int) (*wallet.Wallet, error)
+	GetWallet(ctx context.Context, userID string, chainID int) (*wallet.Wallet, error)
+	ListWallets(ctx context.Context, userID string) ([]*wallet.Wallet, error)
+	GetWalletByAddress(ctx context.Context, address string, chainID int) (*wallet.Wallet, error)
+}
+
+// SignerService interface for transaction signing operations
+type SignerService interface {
+	SignEVMTransaction(ctx context.Context, req *SignEVMRequest) (*SignEVMResponse, error)
+}
+
+// ScanService interface for blockchain scanning operations
+// This is an alias to scan.Service for API access
+type ScanService = scan.Service
+
+// DepositService interface for deposit operations
+// Alias to deposit.Service for API access
+type DepositService = deposit.Service
+
+// SignEVMRequest represents a request to sign an EVM transaction
+type SignEVMRequest struct {
+	ChainID              int64
+	To                   string
+	Value                string
+	GasLimit             uint64
+	MaxFeePerGas         string
+	MaxPriorityFeePerGas string
+	Nonce                uint64
+	Data                 []byte
+	FromAddress          string
+	DerivationPath       string
+}
+
+// SignEVMResponse represents a signed EVM transaction
+type SignEVMResponse struct {
+	RawTransaction []byte
+	TxHash         string
+}
+
 type Router struct {
-	Routes     []*echo.Route
-	Root       *echo.Group
-	Management *echo.Group
-	APIV1Auth  *echo.Group
-	APIV1Push  *echo.Group
-	WellKnown  *echo.Group
+	Routes      []*echo.Route
+	Root        *echo.Group
+	Management  *echo.Group
+	APIV1Auth   *echo.Group
+	APIV1Push   *echo.Group
+	APIV1Wallet *echo.Group
+	WellKnown   *echo.Group
 }
 
 // Server is a central struct keeping all the dependencies.
@@ -56,6 +101,10 @@ type Server struct {
 	Auth    AuthService
 	Local   *local.Service
 	Metrics *metrics.Service
+	Wallet  WalletService // Wallet service
+	Signer  SignerService // Signer service
+	Scan    ScanService   // Blockchain scan service
+	Deposit DepositService
 }
 
 // newServerWithComponents is used by wire to initialize the server components.

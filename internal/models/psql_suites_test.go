@@ -8,9 +8,19 @@ import "testing"
 func TestUpsert(t *testing.T) {
 	t.Run("AccessTokens", testAccessTokensUpsert)
 
+	t.Run("AddressIndexes", testAddressIndexesUpsert)
+
 	t.Run("AppUserProfiles", testAppUserProfilesUpsert)
 
+	t.Run("Blocks", testBlocksUpsert)
+
+	t.Run("Chains", testChainsUpsert)
+
 	t.Run("ConfirmationTokens", testConfirmationTokensUpsert)
+
+	t.Run("Credits", testCreditsUpsert)
+
+	t.Run("Keystores", testKeystoresUpsert)
 
 	t.Run("PasswordResetTokens", testPasswordResetTokensUpsert)
 
@@ -18,5 +28,15 @@ func TestUpsert(t *testing.T) {
 
 	t.Run("RefreshTokens", testRefreshTokensUpsert)
 
+	t.Run("Tokens", testTokensUpsert)
+
+	t.Run("Transactions", testTransactionsUpsert)
+
 	t.Run("Users", testUsersUpsert)
+
+	t.Run("WalletNonces", testWalletNoncesUpsert)
+
+	t.Run("Wallets", testWalletsUpsert)
+
+	t.Run("Withdraws", testWithdrawsUpsert)
 }

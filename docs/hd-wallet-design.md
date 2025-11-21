@@ -11,7 +11,7 @@
 - **完整性**：实现完整的交易所钱包功能，包括充值、提现、归集、调度等
 - **规范性**：严格遵循 go-starter 的架构模式和代码规范
 - **可维护性**：清晰的分层架构，便于维护和测试
-- **EVM 优先**：当前版本仅支持 EVM 链，后续可扩展其他链
+- **EVM 多链**：支持多个 EVM 兼容链（以太坊主网、Polygon、BSC、Arbitrum、Optimism 等）
 
 ### 1.2 核心设计理念
 
@@ -25,16 +25,17 @@
 ### 1.3 核心功能
 
 1. **密钥管理**：使用 keystore 格式加密存储单一助记词，启动时密码解锁
-2. **地址生成**：基于 BIP44 标准从种子派生地址（当前仅支持 EVM）
-3. **交易签名**：签名时临时派生私钥，签名后立即清除
-4. **地址索引管理**：自动管理地址派生路径和索引，确保地址唯一性
-5. **充值（Deposit）**：区块链扫描、交易检测、确认机制、自动入账
-6. **提现（Withdraw）**：完整提现流程、风控检查、热钱包选择、状态管理
-7. **归集（Collect）**：用户钱包到热钱包的资金归集
-8. **资金调度（Rebalance）**：热钱包之间的资金调度
-9. **余额管理**：基于 Credits 流水表的余额查询和聚合
-10. **热钱包管理**：热钱包创建、Nonce 管理、余额监控
-11. **风控模块**：风险评估、双重签名验证、人工审核（可选，可集成外部服务）
+2. **地址生成**：基于 BIP44 标准从种子派生地址（支持多个 EVM 链）
+3. **交易签名**：签名时临时派生私钥，签名后立即清除（支持多个 EVM 链）
+4. **地址索引管理**：自动管理地址派生路径和索引，所有 EVM 链共享索引空间
+5. **多链支持**：支持多个 EVM 链（以太坊主网、Polygon、BSC、Arbitrum 等）
+6. **充值（Deposit）**：多链区块链扫描、交易检测、确认机制、自动入账
+7. **提现（Withdraw）**：完整提现流程、风控检查、热钱包选择、状态管理（支持多链）
+8. **归集（Collect）**：用户钱包到热钱包的资金归集（支持多链）
+9. **资金调度（Rebalance）**：热钱包之间的资金调度（支持多链）
+10. **余额管理**：基于 Credits 流水表的余额查询和聚合（支持多链）
+11. **热钱包管理**：热钱包创建、Nonce 管理、余额监控（按链管理）
+12. **风控模块**：风险评估、双重签名验证、人工审核（可选，可集成外部服务）
 
 ## 2. 系统架构
 
@@ -127,17 +128,18 @@
 使用 SQLBoiler 生成的数据库模型：
 
 **核心表**：
-- `wallets` - 钱包信息表（只存储地址、路径等元数据）
+- `wallets` - 钱包信息表（只存储地址、路径等元数据，支持多链）
 - `keystore` - 单一 Keystore 存储表（存储加密的助记词）
-- `address_indexes` - 地址索引表（管理地址派生索引）
+- `address_indexes` - 地址索引表（管理地址派生索引，所有 EVM 链共享）
+- `chains` - 链配置表（管理支持的 EVM 链配置）
 
 **业务表**：
-- `transactions` - 交易记录表（链上交易）
-- `credits` - 资金流水表（所有余额变动）
-- `withdraws` - 提现记录表（提现完整生命周期）
-- `blocks` - 区块扫描进度表
-- `tokens` - 代币信息表（EVM ERC20 代币）
-- `wallet_nonces` - 钱包 Nonce 管理表（EVM 链交易排序）
+- `transactions` - 交易记录表（链上交易，按 chain_id 区分）
+- `credits` - 资金流水表（所有余额变动，按 chain_id 区分）
+- `withdraws` - 提现记录表（提现完整生命周期，按 chain_id 区分）
+- `blocks` - 区块扫描进度表（按 chain_id 区分）
+- `tokens` - 代币信息表（EVM ERC20 代币，按 chain_id 区分）
+- `wallet_nonces` - 钱包 Nonce 管理表（EVM 链交易排序，按 chain_id 区分）
 
 #### 2.2.4 Persistence 层 (internal/persistence/)
 
@@ -156,22 +158,28 @@ CREATE TABLE wallets (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     address VARCHAR(255) NOT NULL,
-    chain_type VARCHAR(50) NOT NULL, -- 'evm', 'solana', 'btc'
-    derivation_path VARCHAR(255) NOT NULL, -- BIP44 路径，如 "m/44'/60'/0'/0/0"
-    address_index INTEGER NOT NULL, -- 地址索引
+    chain_type VARCHAR(50) NOT NULL DEFAULT 'evm', -- 固定为 'evm'（当前仅支持 EVM）
+    chain_id INTEGER NOT NULL, -- 链ID：1(以太坊主网), 137(Polygon), 56(BSC), 42161(Arbitrum), 10(Optimism) 等
+    derivation_path VARCHAR(255) NOT NULL, -- BIP44 路径，所有 EVM 链都是 "m/44'/60'/0'/0/{index}"
+    address_index INTEGER NOT NULL, -- 地址索引（所有 EVM 链共享相同的索引空间）
     wallet_type VARCHAR(50) NOT NULL DEFAULT 'user', -- 'user', 'hot', 'cold'
     device_name VARCHAR(255), -- 设备名称（可选）
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT wallets_user_chain_unique UNIQUE (user_id, chain_type)
+    CONSTRAINT wallets_user_chain_unique UNIQUE (user_id, chain_id)
 );
 
 CREATE INDEX idx_wallets_user_id ON wallets(user_id);
 CREATE INDEX idx_wallets_address ON wallets(address);
-CREATE INDEX idx_wallets_chain_type ON wallets(chain_type);
+CREATE INDEX idx_wallets_chain_id ON wallets(chain_id);
+CREATE INDEX idx_wallets_user_chain ON wallets(user_id, chain_id);
 ```
 
-**重要说明**：此表只存储地址、路径等元数据，**不存储任何私钥信息**。
+**重要说明**：
+- 此表只存储地址、路径等元数据，**不存储任何私钥信息**
+- **多链支持**：一个用户可以在多个 EVM 链上拥有钱包（通过 `chain_id` 区分）
+- **地址索引共享**：所有 EVM 链共享相同的 BIP44 路径空间（`m/44'/60'/0'/0/{index}`），所以 `address_index` 在所有 EVM 链间共享
+- **唯一约束**：`(user_id, chain_id)` 确保一个用户在每条链上只有一个钱包
 
 #### 3.1.2 keystore 表
 
@@ -232,8 +240,8 @@ CREATE UNIQUE INDEX idx_keystore_single ON keystore((1));
 ```sql
 CREATE TABLE address_indexes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    chain_type VARCHAR(50) NOT NULL, -- 'evm', 'solana', 'btc'
-    current_index INTEGER NOT NULL DEFAULT 0, -- 当前最大索引
+    chain_type VARCHAR(50) NOT NULL DEFAULT 'evm', -- 固定为 'evm'（当前仅支持 EVM）
+    current_index INTEGER NOT NULL DEFAULT 0, -- 当前最大索引（所有 EVM 链共享）
     device_name VARCHAR(255), -- 设备名称（可选）
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -242,6 +250,11 @@ CREATE TABLE address_indexes (
 
 CREATE INDEX idx_address_indexes_chain_type ON address_indexes(chain_type);
 ```
+
+**重要说明**：
+- **索引共享机制**：所有 EVM 链共享相同的地址索引空间，因为 BIP44 路径相同（`m/44'/60'/0'/0/{index}`）
+- 当用户在不同 EVM 链上创建钱包时，使用相同的 `address_index`，但地址会因链而异（因为地址派生算法相同，但链环境不同）
+- 例如：用户在以太坊主网（chain_id=1）和 Polygon（chain_id=137）上创建钱包，如果都使用 index=0，地址会相同（因为 EVM 地址格式统一）
 
 #### 3.1.4 transactions 表
 
@@ -345,23 +358,31 @@ CREATE INDEX idx_withdraws_chain_type ON withdraws(chain_type);
 
 #### 3.1.7 blocks 表
 
-区块扫描进度表，记录扫描的区块信息：
+区块扫描进度表，记录扫描的区块信息（按链区分）：
 
 ```sql
 CREATE TABLE blocks (
-    hash VARCHAR(255) PRIMARY KEY, -- 区块哈希
+    hash VARCHAR(255) NOT NULL, -- 区块哈希
+    chain_id INTEGER NOT NULL, -- 链ID
     parent_hash VARCHAR(255) NOT NULL, -- 父区块哈希
     number BIGINT NOT NULL, -- 区块号
     timestamp BIGINT NOT NULL, -- 区块时间戳
     status VARCHAR(50) NOT NULL DEFAULT 'confirmed', -- 'confirmed', 'safe', 'finalized', 'orphaned'
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT blocks_hash_chain_unique UNIQUE (hash, chain_id)
 );
 
-CREATE INDEX idx_blocks_number ON blocks(number);
-CREATE INDEX idx_blocks_parent_hash ON blocks(parent_hash);
-CREATE INDEX idx_blocks_status ON blocks(status);
+CREATE INDEX idx_blocks_chain_id ON blocks(chain_id);
+CREATE INDEX idx_blocks_number ON blocks(chain_id, number);
+CREATE INDEX idx_blocks_parent_hash ON blocks(chain_id, parent_hash);
+CREATE INDEX idx_blocks_status ON blocks(chain_id, status);
 ```
+
+**重要说明**：
+- 每个链维护独立的区块扫描进度
+- 通过 `(hash, chain_id)` 唯一约束区分不同链的区块
+- 支持并发扫描多个链
 
 #### 3.1.8 tokens 表
 
@@ -632,14 +653,32 @@ CREATE INDEX idx_wallet_nonces_last_used_at ON wallet_nonces(last_used_at);
 
 #### 4.2.1 BIP44 派生路径规范
 
+**EVM 多链路径规范**：
+
+所有 EVM 兼容链使用相同的 BIP44 路径：
 ```
 m / purpose' / coin_type' / account' / change / address_index
 
-示例：
-- EVM:    m/44'/60'/0'/0/0
-- Solana: m/44'/501'/0'/0'
-- Bitcoin: m/44'/0'/0'/0/0
+EVM 路径格式：m/44'/60'/0'/0/{index}
+
+说明：
+- purpose: 44' (BIP44)
+- coin_type: 60' (Ethereum，所有 EVM 链都使用此值)
+- account: 0' (账户索引，固定为 0)
+- change: 0 (外部地址，固定为 0)
+- address_index: {0, 1, 2, ...} (地址索引，所有 EVM 链共享)
 ```
+
+**重要特性**：
+- **路径统一**：所有 EVM 链（以太坊主网、Polygon、BSC、Arbitrum 等）使用相同的 BIP44 路径
+- **地址相同**：相同 `address_index` 在不同 EVM 链上会生成相同的地址（因为地址派生算法相同）
+- **索引共享**：`address_indexes` 表按 `chain_type='evm'` 管理，所有 EVM 链共享索引空间
+- **链区分**：通过 `chain_id` 在数据库中区分不同链的钱包记录
+
+**示例**：
+- 以太坊主网（chain_id=1）index=0: `m/44'/60'/0'/0/0` → 地址 `0x...`
+- Polygon（chain_id=137）index=0: `m/44'/60'/0'/0/0` → 相同地址 `0x...`
+- BSC（chain_id=56）index=0: `m/44'/60'/0'/0/0` → 相同地址 `0x...`
 
 #### 4.2.2 地址生成时序图（用户创建钱包）
 
@@ -653,16 +692,17 @@ sequenceDiagram
     participant DB
 
     Client->>WalletHandler: POST /api/v1/wallet/create
-    WalletHandler->>WalletService: CreateWallet(userId, chainType)
+    WalletHandler->>WalletService: CreateWallet(userId, chainID)
     
-    WalletService->>DB: 检查用户是否已有该链钱包
+    WalletService->>DB: 检查用户是否已有该链钱包<br/>(user_id, chain_id)
     DB-->>WalletService: 返回结果
     
     alt 钱包已存在
         WalletService-->>WalletHandler: 返回现有钱包
     else 钱包不存在
-        WalletService->>AddressService: GetNextAddressIndex(chainType)
-        AddressService->>DB: 查询/更新 address_indexes
+        WalletService->>AddressService: GetNextAddressIndex("evm")
+        Note over AddressService: 所有 EVM 链共享索引空间
+        AddressService->>DB: 查询/更新 address_indexes<br/>(chain_type='evm')
         DB-->>AddressService: 返回新索引
         AddressService-->>WalletService: 返回索引和路径
         
@@ -670,11 +710,11 @@ sequenceDiagram
         WalletService->>SeedManager: GetSeed()
         SeedManager-->>WalletService: 返回种子（从内存）
         
-        WalletService->>AddressService: DeriveAddress(seed, path, chainType)
-        Note over AddressService: 从种子+路径派生地址<br/>不保存私钥
+        WalletService->>AddressService: DeriveAddress(seed, path, "evm")
+        Note over AddressService: 从种子+路径派生地址<br/>所有 EVM 链地址相同<br/>不保存私钥
         AddressService-->>WalletService: 返回地址
         
-        WalletService->>DB: 插入 wallets 记录<br/>(只保存地址和路径)
+        WalletService->>DB: 插入 wallets 记录<br/>(address, chain_id, path, index)
         DB-->>WalletService: 确认
         
         WalletService-->>WalletHandler: 返回钱包信息
@@ -864,14 +904,17 @@ type Server struct {
 package wallet
 
 type Service interface {
-    // CreateWallet 为用户创建钱包
-    CreateWallet(ctx context.Context, userID string, chainType string) (*Wallet, error)
+    // CreateWallet 为用户在指定链上创建钱包
+    CreateWallet(ctx context.Context, userID string, chainID int) (*Wallet, error)
     
-    // GetWallet 获取用户钱包
-    GetWallet(ctx context.Context, userID string, chainType string) (*Wallet, error)
+    // GetWallet 获取用户在指定链上的钱包
+    GetWallet(ctx context.Context, userID string, chainID int) (*Wallet, error)
     
-    // ListWallets 列出用户所有钱包
+    // ListWallets 列出用户所有链的钱包
     ListWallets(ctx context.Context, userID string) ([]*Wallet, error)
+    
+    // GetWalletByChainID 按链ID获取钱包（支持查询任意链）
+    GetWalletByChainID(ctx context.Context, userID string, chainID int) (*Wallet, error)
 }
 ```
 
@@ -921,14 +964,17 @@ type Manager interface {
 package address
 
 type Service interface {
-    // GetNextAddressIndex 获取下一个地址索引
+    // GetNextAddressIndex 获取下一个地址索引（所有 EVM 链共享）
     GetNextAddressIndex(ctx context.Context, chainType string, deviceName string) (int, error)
     
-    // DeriveAddress 从种子派生地址
+    // DeriveAddress 从种子派生地址（所有 EVM 链使用相同路径，地址相同）
     DeriveAddress(ctx context.Context, seed []byte, path string, chainType string) (string, error)
     
-    // DerivePrivateKey 从种子派生私钥
+    // DerivePrivateKey 从种子派生私钥（所有 EVM 链使用相同路径，私钥相同）
     DerivePrivateKey(ctx context.Context, seed []byte, path string, chainType string) ([]byte, error)
+    
+    // GetBIP44Path 获取 BIP44 路径（EVM 链固定格式）
+    GetBIP44Path(addressIndex int) string
 }
 ```
 
@@ -985,10 +1031,14 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "chain_type": "evm",
-  "password": "user_password"
+  "chain_id": 1
 }
 ```
+
+**说明**：
+- `chain_id`: EVM 链ID，例如：1(以太坊主网), 137(Polygon), 56(BSC), 42161(Arbitrum), 10(Optimism)
+- 如果用户在该链上已有钱包，返回现有钱包
+- 如果不存在，创建新钱包（使用共享的地址索引）
 
 **响应**：
 ```json
@@ -997,6 +1047,8 @@ Content-Type: application/json
   "user_id": "uuid",
   "address": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
   "chain_type": "evm",
+  "chain_id": 1,
+  "chain_name": "Ethereum Mainnet",
   "derivation_path": "m/44'/60'/0'/0/0",
   "address_index": 0,
   "created_at": "2025-01-01T00:00:00Z"
@@ -1007,7 +1059,7 @@ Content-Type: application/json
 
 **请求**：
 ```
-GET /api/v1/wallet/address?chain_type=evm
+GET /api/v1/wallet/address?chain_id=1
 Authorization: Bearer <token>
 ```
 
@@ -1016,9 +1068,48 @@ Authorization: Bearer <token>
 {
   "address": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
   "chain_type": "evm",
+  "chain_id": 1,
+  "chain_name": "Ethereum Mainnet",
   "derivation_path": "m/44'/60'/0'/0/0"
 }
 ```
+
+### 7.2.1 列出用户所有链的钱包
+
+**请求**：
+```
+GET /api/v1/wallet/list
+Authorization: Bearer <token>
+```
+
+**响应**：
+```json
+{
+  "wallets": [
+    {
+      "id": "uuid",
+      "address": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+      "chain_id": 1,
+      "chain_name": "Ethereum Mainnet",
+      "derivation_path": "m/44'/60'/0'/0/0",
+      "address_index": 0,
+      "created_at": "2025-01-01T00:00:00Z"
+    },
+    {
+      "id": "uuid",
+      "address": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+      "chain_id": 137,
+      "chain_name": "Polygon",
+      "derivation_path": "m/44'/60'/0'/0/0",
+      "address_index": 0,
+      "created_at": "2025-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+**说明**：
+- 注意：不同链上相同 `address_index` 的地址是相同的（因为 EVM 地址格式统一）
 
 ### 7.3 签名交易
 
@@ -1029,25 +1120,30 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "chain_type": "evm",
+  "chain_id": 1,
   "address": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
   "to": "0x...",
   "amount": "1000000000000000000",
   "gas_limit": "21000",
   "gas_price": "20000000000",
-  "nonce": 0,
-  "chain_id": 1
+  "max_fee_per_gas": "30000000000",
+  "max_priority_fee_per_gas": "2000000000",
+  "nonce": 0
 }
 ```
 
-**注意**：签名不需要密码，因为种子已在启动时加载到内存。
+**说明**：
+- `chain_id`: 必须指定，用于确定交易的目标链
+- 签名不需要密码，因为种子已在启动时加载到内存
+- 支持 EIP-1559 交易（`max_fee_per_gas` 和 `max_priority_fee_per_gas`）
 
 **响应**：
 ```json
 {
   "signed_transaction": "0x...",
   "transaction_hash": "0x...",
-  "from": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+  "from": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+  "chain_id": 1
 }
 ```
 
@@ -1227,30 +1323,43 @@ app db migrate
 
 #### 11.2.1 ScanService（区块链扫描服务）
 
-负责扫描 EVM 链上的区块，检测用户地址的充值交易。
+负责扫描多个 EVM 链上的区块，检测用户地址的充值交易。
 
 **主要功能**：
+- **多链扫描**：支持同时扫描多个 EVM 链（以太坊主网、Polygon、BSC 等）
 - 批量扫描区块（从上次扫描位置到最新区块）
 - 区块重组检测和处理
-- 扫描进度管理（基于 blocks 表）
-- RPC 节点管理和故障转移
+- 扫描进度管理（基于 blocks 表，按 chain_id 区分）
+- RPC 节点管理和故障转移（每个链独立的 RPC 配置）
 
 **关键实现**：
 ```go
 type ScanService interface {
-    // StartScan 启动扫描服务
-    StartScan(ctx context.Context) error
+    // StartMultiChainScan 启动多链扫描服务
+    StartMultiChainScan(ctx context.Context, chainIDs []int) error
     
-    // ScanBlock 扫描单个区块
-    ScanBlock(ctx context.Context, blockNumber int64) error
+    // StartChainScan 启动指定链的扫描
+    StartChainScan(ctx context.Context, chainID int) error
+    
+    // ScanChainBlock 扫描指定链的单个区块
+    ScanChainBlock(ctx context.Context, chainID int, blockNumber int64) error
     
     // DetectReorg 检测区块重组
-    DetectReorg(ctx context.Context, blockNumber int64) (*ReorgInfo, error)
+    DetectReorg(ctx context.Context, chainID int, blockNumber int64) (*ReorgInfo, error)
     
-    // GetScanProgress 获取扫描进度
-    GetScanProgress(ctx context.Context) (*ScanProgress, error)
+    // GetScanProgress 获取指定链的扫描进度
+    GetScanProgress(ctx context.Context, chainID int) (*ScanProgress, error)
+    
+    // GetAllScanProgress 获取所有链的扫描进度
+    GetAllScanProgress(ctx context.Context) (map[int]*ScanProgress, error)
 }
 ```
+
+**多链扫描策略**：
+- 每个链独立扫描，使用独立的 goroutine
+- 每个链维护独立的扫描进度（blocks 表按 chain_id 区分）
+- 支持动态添加/移除链（通过 chains 配置表）
+- 扫描失败自动重试，不影响其他链的扫描
 
 #### 11.2.2 交易检测流程
 
@@ -1322,14 +1431,17 @@ type ScanService interface {
 
 ```go
 type DepositService interface {
-    // ProcessDeposit 处理充值交易
-    ProcessDeposit(ctx context.Context, tx *Transaction) error
+    // ProcessDeposit 处理充值交易（按链区分）
+    ProcessDeposit(ctx context.Context, chainID int, tx *Transaction) error
     
-    // UpdateConfirmationStatus 更新确认状态
-    UpdateConfirmationStatus(ctx context.Context, txHash string) error
+    // UpdateConfirmationStatus 更新确认状态（按链和交易哈希）
+    UpdateConfirmationStatus(ctx context.Context, chainID int, txHash string) error
     
-    // CreateCredit 创建 Credits 记录
+    // CreateCredit 创建 Credits 记录（包含 chain_id）
     CreateCredit(ctx context.Context, deposit *Deposit) error
+    
+    // GetPendingDeposits 获取待确认的充值（按链）
+    GetPendingDeposits(ctx context.Context, chainID int, userID string) ([]*Deposit, error)
 }
 ```
 
@@ -1339,8 +1451,14 @@ type DepositService interface {
 
 **请求**：
 ```
-GET /api/v1/wallet/deposits?user_id={user_id}&status={status}&limit=20&offset=0
+GET /api/v1/wallet/deposits?user_id={user_id}&chain_id={chain_id}&status={status}&limit=20&offset=0
 ```
+
+**参数说明**：
+- `user_id`: 用户ID（必填）
+- `chain_id`: 链ID（可选，不填则查询所有链）
+- `status`: 状态过滤（可选）
+- `limit`, `offset`: 分页参数
 
 **响应**：
 ```json
@@ -1351,10 +1469,25 @@ GET /api/v1/wallet/deposits?user_id={user_id}&status={status}&limit=20&offset=0
       "tx_hash": "0x...",
       "from_address": "0x...",
       "to_address": "0x...",
+      "chain_id": 1,
+      "chain_name": "Ethereum Mainnet",
       "token_symbol": "ETH",
       "amount": "1.000000",
       "status": "finalized",
       "block_number": 12345,
+      "created_at": "2025-01-01T00:00:00Z"
+    },
+    {
+      "id": "uuid",
+      "tx_hash": "0x...",
+      "from_address": "0x...",
+      "to_address": "0x...",
+      "chain_id": 137,
+      "chain_name": "Polygon",
+      "token_symbol": "USDC",
+      "amount": "100.000000",
+      "status": "finalized",
+      "block_number": 50000,
       "created_at": "2025-01-01T00:00:00Z"
     }
   ],
@@ -1467,16 +1600,16 @@ GET /api/v1/wallet/deposits/pending?user_id={user_id}
 
 ```go
 type WithdrawService interface {
-    // CreateWithdrawRequest 创建提现请求
+    // CreateWithdrawRequest 创建提现请求（必须指定 chain_id）
     CreateWithdrawRequest(ctx context.Context, req *WithdrawRequest) (*Withdraw, error)
     
-    // ProcessWithdraw 处理提现（选择热钱包、签名、发送）
+    // ProcessWithdraw 处理提现（选择热钱包、签名、发送，按链处理）
     ProcessWithdraw(ctx context.Context, withdrawID string) error
     
-    // UpdateWithdrawStatus 更新提现状态
-    UpdateWithdrawStatus(ctx context.Context, withdrawID string, status string, txHash string) error
+    // UpdateWithdrawStatus 更新提现状态（按链和交易哈希）
+    UpdateWithdrawStatus(ctx context.Context, chainID int, withdrawID string, status string, txHash string) error
     
-    // GetWithdraws 查询提现记录
+    // GetWithdraws 查询提现记录（支持按 chain_id 过滤）
     GetWithdraws(ctx context.Context, userID string, filters *WithdrawFilters) ([]*Withdraw, error)
 }
 ```
@@ -1510,10 +1643,14 @@ Content-Type: application/json
   "to_address": "0x...",
   "amount": "1.5",
   "token_symbol": "USDT",
-  "chain_id": 1,
-  "chain_type": "evm"
+  "chain_id": 1
 }
 ```
+
+**说明**：
+- `chain_id`: 必须指定目标链ID
+- `token_symbol`: 代币符号，需要在指定链上存在
+- 系统会根据 `chain_id` 选择对应链的热钱包进行签名和发送
 
 **响应**：
 ```json
@@ -1589,14 +1726,17 @@ GET /api/v1/wallet/withdraws?user_id={user_id}&status={status}&limit=20&offset=0
 
 ```go
 type CollectService interface {
-    // CollectFunds 归集资金
-    CollectFunds(ctx context.Context, userID string, tokenID int, amount string) error
+    // CollectFunds 归集资金（必须指定 chain_id）
+    CollectFunds(ctx context.Context, chainID int, userID string, tokenID int, amount string) error
     
-    // BatchCollect 批量归集
+    // BatchCollect 批量归集（支持多链）
     BatchCollect(ctx context.Context, requests []*CollectRequest) error
     
-    // AutoCollect 自动归集（定时任务）
+    // AutoCollect 自动归集（定时任务，按链分别检查）
     AutoCollect(ctx context.Context) error
+    
+    // CollectForChain 归集指定链的资金
+    CollectForChain(ctx context.Context, chainID int) error
 }
 ```
 
@@ -1617,6 +1757,10 @@ Content-Type: application/json
 }
 ```
 
+**说明**：
+- `chain_id`: 必须指定目标链ID
+- 归集操作会在指定链上执行，将用户钱包资金归集到该链的热钱包
+
 ## 14. 资金调度（Rebalance）模块设计
 
 ### 14.1 模块概述
@@ -1626,26 +1770,29 @@ Content-Type: application/json
 ### 14.2 调度策略
 
 **触发条件**：
-1. **余额不足**：热钱包余额低于阈值
-2. **余额过多**：热钱包余额高于阈值（安全考虑）
-3. **手动调度**：管理员手动触发
+1. **余额不足**：热钱包余额低于阈值（按链和代币分别检查）
+2. **余额过多**：热钱包余额高于阈值（安全考虑，按链检查）
+3. **手动调度**：管理员手动触发（指定 chain_id）
 
 **调度流程**：
 ```
 ┌─────────────┐
 │  检查热钱包 │
 │  余额       │
+│  (按链)     │
 └──────┬──────┘
        │
        ▼
 ┌─────────────────────┐
 │  选择源热钱包       │
+│  (相同 chain_id)    │
 │  (余额充足)         │
 └──────┬──────────────┘
        │
        ▼
 ┌─────────────────────┐
 │  选择目标热钱包     │
+│  (相同 chain_id)    │
 │  (余额不足)         │
 └──────┬──────────────┘
        │
@@ -1653,12 +1800,14 @@ Content-Type: application/json
 ┌─────────────────────┐
 │  构建调度交易       │
 │  - from: 源热钱包   │
-│  - to: 目标热钱包    │
+│  - to: 目标热钱包   │
+│  - chain_id: 指定链 │
 └──────┬──────────────┘
        │
        ▼
 ┌─────────────────────┐
 │  签名并发送交易     │
+│  (使用指定链的 RPC) │
 └──────┬──────────────┘
        │
        ▼
@@ -1666,18 +1815,27 @@ Content-Type: application/json
 │  创建 Credits 记录  │
 │  - 源热钱包：-amount│
 │  - 目标热钱包：+amount│
+│  - chain_id: 指定链│
 └─────────────────────┘
 ```
+
+**重要说明**：
+- 资金调度只能在相同链内进行（不能跨链调度）
+- 每个链独立管理热钱包池
+- 调度策略按链分别配置
 
 ### 14.3 RebalanceService（资金调度服务）
 
 ```go
 type RebalanceService interface {
-    // RebalanceHotWallets 调度热钱包资金
-    RebalanceHotWallets(ctx context.Context, fromAddress string, toAddress string, amount string) error
+    // RebalanceHotWallets 调度热钱包资金（必须指定 chain_id，只能同链调度）
+    RebalanceHotWallets(ctx context.Context, chainID int, fromAddress string, toAddress string, amount string) error
     
-    // AutoRebalance 自动调度（定时任务）
+    // AutoRebalance 自动调度（定时任务，按链分别检查）
     AutoRebalance(ctx context.Context) error
+    
+    // RebalanceForChain 调度指定链的热钱包资金
+    RebalanceForChain(ctx context.Context, chainID int) error
 }
 ```
 
@@ -1689,11 +1847,12 @@ type RebalanceService interface {
 
 ### 15.2 余额计算原理
 
-**余额 = SUM(Credits.amount WHERE status = 'finalized')**
+**余额 = SUM(Credits.amount WHERE status = 'finalized' AND chain_id = ? AND token_id = ?)**
 
-- **可用余额**：status = 'finalized' 且 credit_type != 'freeze' 的金额总和
-- **冻结余额**：status = 'frozen' 的金额总和
+- **可用余额**：status = 'finalized' 且 credit_type != 'freeze' 的金额总和（按链和代币）
+- **冻结余额**：status = 'frozen' 的金额总和（按链和代币）
 - **总余额**：可用余额 + 冻结余额
+- **多链余额**：可以查询单个链的余额，也可以聚合所有链的余额
 
 ### 15.3 BalanceService（余额服务）
 
@@ -1719,18 +1878,32 @@ type BalanceService interface {
 
 **请求**：
 ```
-GET /api/v1/wallet/balance/total?user_id={user_id}
+GET /api/v1/wallet/balance/total?user_id={user_id}&chain_id={chain_id}
 ```
+
+**参数说明**：
+- `user_id`: 用户ID（必填）
+- `chain_id`: 链ID（可选，不填则聚合所有链）
 
 **响应**：
 ```json
 {
   "balances": [
     {
+      "chain_id": 1,
+      "chain_name": "Ethereum Mainnet",
       "token_symbol": "ETH",
       "total_balance": "10.000000",
       "available_balance": "9.500000",
       "frozen_balance": "0.500000"
+    },
+    {
+      "chain_id": 137,
+      "chain_name": "Polygon",
+      "token_symbol": "USDC",
+      "total_balance": "1000.000000",
+      "available_balance": "1000.000000",
+      "frozen_balance": "0.000000"
     }
   ]
 }
@@ -1740,8 +1913,13 @@ GET /api/v1/wallet/balance/total?user_id={user_id}
 
 **请求**：
 ```
-GET /api/v1/wallet/balance/token/{token_symbol}?user_id={user_id}
+GET /api/v1/wallet/balance/token/{token_symbol}?user_id={user_id}&chain_id={chain_id}
 ```
+
+**参数说明**：
+- `token_symbol`: 代币符号（必填）
+- `user_id`: 用户ID（必填）
+- `chain_id`: 链ID（可选，不填则查询所有链）
 
 ## 16. 热钱包管理模块设计
 
@@ -1767,22 +1945,30 @@ GET /api/v1/wallet/balance/token/{token_symbol}?user_id={user_id}
 
 ```go
 type HotWalletService interface {
-    // CreateHotWallet 创建热钱包
-    CreateHotWallet(ctx context.Context, chainType string) (*HotWallet, error)
+    // CreateHotWallet 在指定链上创建热钱包
+    CreateHotWallet(ctx context.Context, chainID int) (*HotWallet, error)
     
-    // GetHotWallets 获取所有热钱包
+    // GetHotWallets 获取指定链的所有热钱包
     GetHotWallets(ctx context.Context, chainID int) ([]*HotWallet, error)
     
-    // GetCurrentNonce 获取当前 nonce
+    // GetCurrentNonce 获取指定链上地址的当前 nonce
     GetCurrentNonce(ctx context.Context, address string, chainID int) (int, error)
     
-    // MarkNonceUsed 标记 nonce 已使用
+    // MarkNonceUsed 标记 nonce 已使用（按链区分）
     MarkNonceUsed(ctx context.Context, address string, chainID int, nonce int) error
     
-    // SyncNonceFromChain 从链上同步 nonce
+    // SyncNonceFromChain 从指定链上同步 nonce
     SyncNonceFromChain(ctx context.Context, address string, chainID int) error
+    
+    // SelectHotWallet 选择指定链的可用热钱包
+    SelectHotWallet(ctx context.Context, chainID int, tokenID int, amount string) (*HotWallet, error)
 }
 ```
+
+**重要说明**：
+- 每个链需要独立的热钱包池
+- Nonce 管理按 `(address, chain_id)` 区分
+- 热钱包选择策略需要考虑链的 Gas 价格和余额
 
 ## 17. 风控模块设计
 
@@ -1855,9 +2041,12 @@ type RiskControlService interface {
 **目标**：完成基础架构和核心密钥管理
 
 #### 1.1 数据库设计和迁移
-- [ ] 设计所有表结构
+- [ ] 设计所有表结构（包括 chains 配置表）
+- [ ] 修改 wallets 表添加 chain_id 字段
+- [ ] 调整唯一约束为 (user_id, chain_id)
 - [ ] 编写数据库迁移文件
 - [ ] 使用 SQLBoiler 生成模型
+- [ ] 初始化支持的 EVM 链配置（chains 表）
 
 #### 1.2 Keystore 和种子管理
 - [ ] 实现 KeystoreService（加密/解密助记词）
@@ -1867,8 +2056,9 @@ type RiskControlService interface {
 
 #### 1.3 地址生成
 - [ ] 实现 AddressService
-- [ ] 实现 EVM 地址派生（BIP44）
-- [ ] 实现地址索引管理
+- [ ] 实现 EVM 地址派生（BIP44，所有 EVM 链共享路径）
+- [ ] 实现地址索引管理（所有 EVM 链共享索引空间）
+- [ ] 实现 BIP44 路径生成（固定格式：m/44'/60'/0'/0/{index}）
 
 #### 1.4 交易签名
 - [ ] 实现 SignerService
@@ -1876,19 +2066,23 @@ type RiskControlService interface {
 - [ ] 实现私钥临时派生和清除机制
 
 #### 1.5 基础 API
-- [ ] 实现钱包创建 API
-- [ ] 实现获取钱包地址 API
-- [ ] 实现签名交易 API（测试用）
+- [ ] 实现钱包创建 API（支持 chain_id 参数）
+- [ ] 实现获取钱包地址 API（支持 chain_id 参数）
+- [ ] 实现列出用户所有链钱包 API
+- [ ] 实现签名交易 API（支持 chain_id 参数，测试用）
+- [ ] 实现链配置查询 API（查询支持的链列表）
 
 ### 阶段二：充值模块（2周）
 
 **目标**：实现完整的充值检测和入账流程
 
 #### 2.1 区块链扫描器
-- [ ] 实现 ScanService
-- [ ] 实现区块扫描逻辑
-- [ ] 实现区块重组检测和处理
-- [ ] 实现扫描进度管理
+- [ ] 实现 ScanService（支持多链扫描）
+- [ ] 实现多链并发扫描逻辑
+- [ ] 实现区块扫描逻辑（按 chain_id 区分）
+- [ ] 实现区块重组检测和处理（按 chain_id 区分）
+- [ ] 实现扫描进度管理（blocks 表按 chain_id 区分）
+- [ ] 实现 RPC 节点管理和故障转移（每个链独立）
 
 #### 2.2 交易检测
 - [ ] 实现交易解析（ETH 和 ERC20）
@@ -2047,39 +2241,37 @@ sequenceDiagram
     participant BalanceService
     participant DB
 
-    loop 定时扫描
-        ScanService->>RPCNode: 获取最新区块号
-        RPCNode-->>ScanService: 返回区块号
-        
-        ScanService->>DB: 查询上次扫描进度
-        DB-->>ScanService: 返回最后扫描区块
-        
-        loop 批量扫描区块
-            ScanService->>RPCNode: 获取区块详情
-            RPCNode-->>ScanService: 返回区块数据
+    loop 多链并发扫描
+        par 扫描以太坊主网 (chain_id=1)
+            ScanService->>RPCNode1: 获取最新区块号
+            RPCNode1-->>ScanService: 返回区块号
             
-            ScanService->>ScanService: 检测区块重组
-            alt 检测到重组
-                ScanService->>DB: 回滚区块数据
-                ScanService->>DB: 恢复用户余额
+            ScanService->>DB: 查询扫描进度 (chain_id=1)
+            DB-->>ScanService: 返回最后扫描区块
+            
+            loop 批量扫描区块
+                ScanService->>RPCNode1: 获取区块详情
+                RPCNode1-->>ScanService: 返回区块数据
+                
+                ScanService->>ScanService: 检测区块重组
+                alt 检测到重组
+                    ScanService->>DB: 回滚区块数据 (chain_id=1)
+                    ScanService->>DB: 恢复用户余额
+                end
+                
+                ScanService->>ScanService: 分析交易
+                ScanService->>DB: 查询用户地址 (chain_id=1)
+                
+                alt 发现充值交易
+                    ScanService->>DB: 创建交易记录 (chain_id=1, confirmed)
+                    ScanService->>DepositService: 处理充值
+                    DepositService->>BalanceService: 更新用户余额
+                end
             end
-            
-            ScanService->>ScanService: 分析交易
-            ScanService->>DB: 查询用户地址
-            
-            alt 发现充值交易
-                ScanService->>DB: 创建交易记录（confirmed）
-                ScanService->>DepositService: 处理充值
-                
-                DepositService->>DB: 查询代币信息
-                DepositService->>DB: 创建 Credits 记录（confirmed）
-                
-                Note over DepositService: 等待确认
-                DepositService->>DepositService: 更新状态（safe）
-                DepositService->>DepositService: 更新状态（finalized）
-                
-                DepositService->>BalanceService: 更新用户余额
-            end
+        and 扫描 Polygon (chain_id=137)
+            Note over ScanService: 相同的扫描逻辑<br/>但使用不同的 RPC 节点
+        and 扫描 BSC (chain_id=56)
+            Note over ScanService: 相同的扫描逻辑<br/>但使用不同的 RPC 节点
         end
     end
 ```
@@ -2174,15 +2366,22 @@ sequenceDiagram
 
 ### 20.1 区块扫描优化
 
-**批量扫描策略**：
-- 一次扫描多个区块（默认 10 个）
-- 使用 goroutine 并发处理区块
-- 限制并发数，避免 RPC 节点压力过大
+**多链扫描策略**：
+- 每个链独立扫描，使用独立的 goroutine
+- 每个链一次扫描多个区块（默认 10 个）
+- 限制每个链的并发数，避免 RPC 节点压力过大
+- 支持动态添加/移除链（通过 chains 配置表）
 
 **进度管理**：
-- 使用 blocks 表记录扫描进度
+- 使用 blocks 表记录扫描进度，按 `chain_id` 区分
+- 每个链维护独立的扫描进度
 - 支持断点续扫
 - 定期持久化扫描位置
+
+**RPC 节点管理**：
+- 每个链配置独立的 RPC 节点（chains 表）
+- 支持多个 RPC URL（逗号分隔），自动故障转移
+- 每个链独立的连接池和重试策略
 
 ### 20.2 Nonce 管理优化
 
@@ -2225,35 +2424,77 @@ RETURNING nonce
 - Nonce 不一致自动修复
 - 余额异常自动检测和修复
 
-## 21. 监控和运维
+## 21. 多链配置和管理
 
-### 21.1 关键指标
+### 21.1 支持的 EVM 链
+
+**主流 EVM 链配置**：
+
+| Chain ID | 链名称 | 原生代币 | RPC URL 示例 |
+|----------|--------|----------|--------------|
+| 1 | Ethereum Mainnet | ETH | https://eth-mainnet.g.alchemy.com/v2/... |
+| 137 | Polygon | MATIC | https://polygon-rpc.com |
+| 56 | BSC | BNB | https://bsc-dataseed.binance.org |
+| 42161 | Arbitrum One | ETH | https://arb1.arbitrum.io/rpc |
+| 10 | Optimism | ETH | https://mainnet.optimism.io |
+| 43114 | Avalanche C-Chain | AVAX | https://api.avax.network/ext/bc/C/rpc |
+| 8453 | Base | ETH | https://mainnet.base.org |
+
+### 21.2 链配置管理
+
+**初始化链配置**：
+- 通过数据库迁移或种子数据初始化支持的链
+- 支持动态添加新链（通过 chains 表）
+- 支持启用/禁用链（is_active 字段）
+
+**RPC 节点管理**：
+- 每个链配置独立的 RPC URL
+- 支持多个 RPC URL（逗号分隔），自动故障转移
+- 定期检查 RPC 节点健康状态
+
+### 21.3 多链地址管理
+
+**地址共享机制**：
+- 所有 EVM 链使用相同的 BIP44 路径（`m/44'/60'/0'/0/{index}`）
+- 相同 `address_index` 在不同链上生成相同的地址
+- 用户在多个链上创建钱包时，如果使用相同索引，地址相同
+
+**示例**：
+- 用户在以太坊主网（chain_id=1）创建钱包，index=0 → 地址 `0xABC...`
+- 用户在 Polygon（chain_id=137）创建钱包，index=0 → 相同地址 `0xABC...`
+- 用户在 BSC（chain_id=56）创建钱包，index=0 → 相同地址 `0xABC...`
+
+## 22. 监控和运维
+
+### 22.1 关键指标
 
 **业务指标**：
-- 充值笔数和金额
-- 提现笔数和金额
-- 归集次数和金额
-- 热钱包余额分布
+- 充值笔数和金额（按链统计）
+- 提现笔数和金额（按链统计）
+- 归集次数和金额（按链统计）
+- 热钱包余额分布（按链统计）
 
 **技术指标**：
-- 区块扫描延迟
-- 交易确认时间
-- Nonce 使用情况
+- 区块扫描延迟（按链统计）
+- 交易确认时间（按链统计）
+- Nonce 使用情况（按链统计）
 - 余额计算性能
+- RPC 节点响应时间（按链统计）
 
 **安全指标**：
 - 密码验证失败次数
 - 签名失败次数
 - 风控拒绝率
-- 异常交易检测
+- 异常交易检测（按链统计）
 
-### 21.2 告警机制
+### 22.2 告警机制
 
 **告警场景**：
-- 区块扫描延迟超过阈值
-- 热钱包余额不足
-- 充值/提现异常
+- 区块扫描延迟超过阈值（按链告警）
+- 热钱包余额不足（按链告警）
+- 充值/提现异常（按链告警）
 - 系统错误率过高
+- RPC 节点连接失败（按链告警）
 
 ### 21.3 日志规范
 
@@ -2271,8 +2512,8 @@ RETURNING nonce
 
 ---
 
-**文档版本**: 2.0  
+**文档版本**: 2.1  
 **最后更新**: 2025-01-01  
 **作者**: AI Assistant  
-**适用范围**: EVM 链完整功能实现
+**适用范围**: EVM 多链完整功能实现（以太坊主网、Polygon、BSC、Arbitrum、Optimism 等）
 

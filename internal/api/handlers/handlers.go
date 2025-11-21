@@ -7,6 +7,7 @@ import (
 	"github/chapool/go-wallet/internal/api/handlers/auth"
 	"github/chapool/go-wallet/internal/api/handlers/common"
 	"github/chapool/go-wallet/internal/api/handlers/push"
+	"github/chapool/go-wallet/internal/api/handlers/wallet"
 	"github/chapool/go-wallet/internal/api/handlers/wellknown"
 )
 
@@ -29,6 +30,13 @@ func AttachAllRoutes(s *api.Server) {
 		common.GetSwaggerRoute(s),
 		common.GetVersionRoute(s),
 		push.PutUpdatePushTokenRoute(s),
+		wallet.GetChainsRoute(s),
+		wallet.GetDepositsRoute(s),
+		wallet.GetPendingDepositsRoute(s),
+		wallet.GetWalletAddressRoute(s),
+		wallet.GetWalletListRoute(s),
+		wallet.PostCreateWalletRoute(s),
+		wallet.PostSignTransactionRoute(s),
 		wellknown.GetAndroidDigitalAssetLinksRoute(s),
 		wellknown.GetAppleAppSiteAssociationRoute(s),
 	}

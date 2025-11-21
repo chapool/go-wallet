@@ -113,6 +113,11 @@ linters:
         - to string
         - f FixtureMap
         - le *zerolog.Event
+        - iv []byte
+        - tx *models.Transaction
+        - tx *types.Transaction
+        - to *common.Address
+        - to common.Address
     ireturn:
       allow:
         - anon

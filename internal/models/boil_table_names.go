@@ -5,18 +5,38 @@ package models
 
 var TableNames = struct {
 	AccessTokens        string
+	AddressIndexes      string
 	AppUserProfiles     string
+	Blocks              string
+	Chains              string
 	ConfirmationTokens  string
+	Credits             string
+	Keystore            string
 	PasswordResetTokens string
 	PushTokens          string
 	RefreshTokens       string
+	Tokens              string
+	Transactions        string
 	Users               string
+	WalletNonces        string
+	Wallets             string
+	Withdraws           string
 }{
 	AccessTokens:        "access_tokens",
+	AddressIndexes:      "address_indexes",
 	AppUserProfiles:     "app_user_profiles",
+	Blocks:              "blocks",
+	Chains:              "chains",
 	ConfirmationTokens:  "confirmation_tokens",
+	Credits:             "credits",
+	Keystore:            "keystore",
 	PasswordResetTokens: "password_reset_tokens",
 	PushTokens:          "push_tokens",
 	RefreshTokens:       "refresh_tokens",
+	Tokens:              "tokens",
+	Transactions:        "transactions",
 	Users:               "users",
+	WalletNonces:        "wallet_nonces",
+	Wallets:             "wallets",
+	Withdraws:           "withdraws",
 }

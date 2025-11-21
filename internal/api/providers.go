@@ -79,3 +79,7 @@ func NewI18N(config config.Server) (*i18n.Service, error) {
 func NoTest() []*testing.T {
 	return nil
 }
+
+// Note: Wallet service providers are not included here because they need to be
+// initialized manually in cmd/server/wallet_init.go after SeedManager is initialized
+// with password at startup.

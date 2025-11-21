@@ -1,0 +1,281 @@
+swagger: "2.0"
+info:
+  title: github/chapool/go-wallet
+  version: 0.1.0
+paths: {}
+definitions:
+  PostCreateWalletPayload:
+    type: object
+    required: [chain_id]
+    properties:
+      chain_id:
+        type: integer
+        description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC, etc.)
+        example: 1
+  
+  CreateWalletResponse:
+    type: object
+    required: [id, user_id, address, chain_type, chain_id, chain_name, derivation_path, address_index, created_at]
+    properties:
+      id:
+        type: string
+        format: uuid
+        example: "550e8400-e29b-41d4-a716-446655440000"
+      user_id:
+        type: string
+        format: uuid
+        example: "550e8400-e29b-41d4-a716-446655440000"
+      address:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      chain_type:
+        type: string
+        example: "evm"
+      chain_id:
+        type: integer
+        example: 1
+      chain_name:
+        type: string
+        example: "Ethereum Mainnet"
+      derivation_path:
+        type: string
+        example: "m/44'/60'/0'/0/0"
+      address_index:
+        type: integer
+        example: 0
+      created_at:
+        type: string
+        format: date-time
+        example: "2025-01-01T00:00:00Z"
+  
+  GetWalletAddressResponse:
+    type: object
+    required: [address, chain_type, chain_id, chain_name, derivation_path]
+    properties:
+      address:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      chain_type:
+        type: string
+        example: "evm"
+      chain_id:
+        type: integer
+        example: 1
+      chain_name:
+        type: string
+        example: "Ethereum Mainnet"
+      derivation_path:
+        type: string
+        example: "m/44'/60'/0'/0/0"
+  
+  WalletItem:
+    type: object
+    required: [id, user_id, address, chain_type, chain_id, chain_name, derivation_path, address_index, created_at]
+    properties:
+      id:
+        type: string
+        format: uuid
+      user_id:
+        type: string
+        format: uuid
+      address:
+        type: string
+      chain_type:
+        type: string
+      chain_id:
+        type: integer
+      chain_name:
+        type: string
+      derivation_path:
+        type: string
+      address_index:
+        type: integer
+      created_at:
+        type: string
+        format: date-time
+  
+  GetWalletListResponse:
+    type: object
+    required: [wallets]
+    properties:
+      wallets:
+        type: array
+        items:
+          $ref: "#/definitions/WalletItem"
+  
+  PostSignTransactionPayload:
+    type: object
+    required: [chain_id, from_address, to, value, gas_limit, max_fee_per_gas, max_priority_fee_per_gas, nonce]
+    properties:
+      chain_id:
+        type: integer
+        description: Chain ID
+        example: 1
+      from_address:
+        type: string
+        description: Address to sign from
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      to:
+        type: string
+        description: Recipient address
+        example: "0x8ba1f109551bD432803012645Hac136c22C177E7"
+      value:
+        type: string
+        description: Amount in wei (as string to avoid precision loss)
+        example: "1000000000000000000"
+      gas_limit:
+        type: integer
+        format: int64
+        description: Gas limit
+        example: 21000
+      max_fee_per_gas:
+        type: string
+        description: Max fee per gas (EIP-1559, in wei, as string)
+        example: "20000000000"
+      max_priority_fee_per_gas:
+        type: string
+        description: Max priority fee per gas (EIP-1559, in wei, as string)
+        example: "1000000000"
+      nonce:
+        type: integer
+        format: int64
+        description: Transaction nonce
+        example: 0
+      data:
+        type: string
+        format: byte
+        description: Transaction data (for contract calls, optional)
+        example: ""
+  
+  SignTransactionResponse:
+    type: object
+    required: [raw_transaction, tx_hash]
+    properties:
+      raw_transaction:
+        type: string
+        format: byte
+        description: RLP-encoded signed transaction
+      tx_hash:
+        type: string
+        description: Transaction hash (hex string with 0x prefix)
+        example: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+  
+  ChainItem:
+    type: object
+    required: [id, chain_id, chain_name, chain_type, native_token_symbol, is_active]
+    properties:
+      id:
+        type: integer
+        example: 1
+      chain_id:
+        type: integer
+        example: 1
+      chain_name:
+        type: string
+        example: "Ethereum Mainnet"
+      chain_type:
+        type: string
+        example: "evm"
+      native_token_symbol:
+        type: string
+        example: "ETH"
+      block_time_seconds:
+        type: integer
+        example: 12
+      confirmation_blocks:
+        type: integer
+        example: 12
+      finalized_blocks:
+        type: integer
+        example: 32
+      is_active:
+        type: boolean
+        example: true
+  
+  DepositItem:
+    type: object
+    required: [id, chain_id, tx_hash, from_addr, to_addr, amount, token_symbol, status, block_no, created_at]
+    properties:
+      id:
+        type: string
+        format: uuid
+      chain_id:
+        type: integer
+        example: 1
+      tx_hash:
+        type: string
+        example: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+      from_addr:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      to_addr:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      token_addr:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      amount:
+        type: string
+        example: "1000000000000000000"
+      token_symbol:
+        type: string
+        example: "ETH"
+      status:
+        type: string
+        enum: [confirmed, safe, finalized, failed]
+        example: "finalized"
+      confirmation_count:
+        type: integer
+        example: 32
+      block_no:
+        type: integer
+        format: int64
+        example: 12345678
+      created_at:
+        type: string
+        format: date-time
+        example: "2025-01-01T00:00:00Z"
+  
+  GetDepositsResponse:
+    type: object
+    required: [deposits]
+    properties:
+      deposits:
+        type: array
+        items:
+          $ref: "#/definitions/DepositItem"
+  
+  GetChainsResponse:
+    type: object
+    required: [chains]
+    properties:
+      chains:
+        type: array
+        items:
+          $ref: "#/definitions/ChainItem"
+  
+  PendingDepositItem:
+    type: object
+    required: [token_symbol, pending_amount, transaction_count]
+    properties:
+      token_symbol:
+        type: string
+        example: "ETH"
+      pending_amount:
+        type: string
+        description: Total pending deposit amount (as string to avoid precision loss)
+        example: "0.500000"
+      transaction_count:
+        type: integer
+        description: Number of pending deposit transactions
+        example: 2
+  
+  GetPendingDepositsResponse:
+    type: object
+    required: [pending_deposits]
+    properties:
+      pending_deposits:
+        type: array
+        items:
+          $ref: "#/definitions/PendingDepositItem"
+

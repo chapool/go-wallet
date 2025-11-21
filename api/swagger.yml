@@ -403,6 +403,259 @@ paths:
           description: PublicHTTPError, type `PUSH_TOKEN_ALREADY_EXISTS`
           schema:
             $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/address:
+    get:
+      security:
+      - Bearer: []
+      description: Get the wallet address for the authenticated user on the specified
+        chain.
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Get wallet address
+      operationId: GetWalletAddressRoute
+      parameters:
+      - type: integer
+        description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC,
+          etc.)
+        name: chain_id
+        in: query
+        required: true
+      responses:
+        "200":
+          description: Wallet address retrieved successfully
+          schema:
+            $ref: '#/definitions/getWalletAddressResponse'
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: '#/definitions/publicHttpValidationError'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "404":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/chains:
+    get:
+      security:
+      - Bearer: []
+      description: Get list of supported EVM chains.
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Get supported chains
+      operationId: GetChainsRoute
+      responses:
+        "200":
+          description: Chains retrieved successfully
+          schema:
+            $ref: '#/definitions/getChainsResponse'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/create:
+    post:
+      security:
+      - Bearer: []
+      description: |-
+        Create a wallet for the authenticated user on the specified chain.
+        If the user already has a wallet on this chain, returns the existing wallet.
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Create wallet
+      operationId: PostCreateWalletRoute
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/postCreateWalletPayload'
+      responses:
+        "200":
+          description: Wallet created or retrieved successfully
+          schema:
+            $ref: '#/definitions/createWalletResponse'
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: '#/definitions/publicHttpValidationError'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/deposits:
+    get:
+      security:
+      - Bearer: []
+      description: |-
+        Get deposit records for the authenticated user.
+        Supports filtering by chain_id and status.
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Get deposit records
+      operationId: GetDepositsRoute
+      parameters:
+      - type: integer
+        description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC,
+          etc.)
+        name: chain_id
+        in: query
+      - enum:
+        - confirmed
+        - safe
+        - finalized
+        - failed
+        type: string
+        description: Filter by transaction status
+        name: status
+        in: query
+      - minimum: 0
+        type: integer
+        default: 0
+        description: Offset used for pagination, number of records to skip
+        name: offset
+        in: query
+      - maximum: 500
+        minimum: 1
+        type: integer
+        default: 50
+        description: Limit used for pagination, number of records to retrieve
+        name: limit
+        in: query
+      responses:
+        "200":
+          description: List of deposit records
+          schema:
+            $ref: '#/definitions/getDepositsResponse'
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: '#/definitions/publicHttpValidationError'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/deposits/pending:
+    get:
+      security:
+      - Bearer: []
+      description: |-
+        Get pending deposit balances grouped by token symbol for the authenticated user.
+        Returns deposits with status 'confirmed' or 'safe' (not yet finalized).
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Get pending deposit balances
+      operationId: GetPendingDepositsRoute
+      parameters:
+      - type: integer
+        description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC,
+          etc.)
+        name: chain_id
+        in: query
+      responses:
+        "200":
+          description: Pending deposit balances retrieved successfully
+          schema:
+            $ref: '#/definitions/getPendingDepositsResponse'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/list:
+    get:
+      security:
+      - Bearer: []
+      description: List all wallets for the authenticated user across all chains.
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: List all wallets
+      operationId: GetWalletListRoute
+      responses:
+        "200":
+          description: Wallet list retrieved successfully
+          schema:
+            $ref: '#/definitions/getWalletListResponse'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/sign-transaction:
+    post:
+      security:
+      - Bearer: []
+      description: Sign an EVM transaction (EIP-1559). This is a test endpoint for
+        transaction signing.
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Sign transaction
+      operationId: PostSignTransactionRoute
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/postSignTransactionPayload'
+      responses:
+        "200":
+          description: Transaction signed successfully
+          schema:
+            $ref: '#/definitions/signTransactionResponse'
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: '#/definitions/publicHttpValidationError'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
   /swagger.yml:
     get:
       description: |-
@@ -418,6 +671,86 @@ paths:
         "200":
           description: OK
 definitions:
+  chainItem:
+    type: object
+    required:
+    - id
+    - chain_id
+    - chain_name
+    - chain_type
+    - native_token_symbol
+    - is_active
+    properties:
+      block_time_seconds:
+        type: integer
+        example: 12
+      chain_id:
+        type: integer
+        example: 1
+      chain_name:
+        type: string
+        example: Ethereum Mainnet
+      chain_type:
+        type: string
+        example: evm
+      confirmation_blocks:
+        type: integer
+        example: 12
+      finalized_blocks:
+        type: integer
+        example: 32
+      id:
+        type: integer
+        example: 1
+      is_active:
+        type: boolean
+        example: true
+      native_token_symbol:
+        type: string
+        example: ETH
+  createWalletResponse:
+    type: object
+    required:
+    - id
+    - user_id
+    - address
+    - chain_type
+    - chain_id
+    - chain_name
+    - derivation_path
+    - address_index
+    - created_at
+    properties:
+      address:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      address_index:
+        type: integer
+        example: 0
+      chain_id:
+        type: integer
+        example: 1
+      chain_name:
+        type: string
+        example: Ethereum Mainnet
+      chain_type:
+        type: string
+        example: evm
+      created_at:
+        type: string
+        format: date-time
+        example: "2025-01-01T00:00:00Z"
+      derivation_path:
+        type: string
+        example: m/44'/60'/0'/0/0
+      id:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440000
+      user_id:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440000
   deleteUserAccountPayload:
     type: object
     required:
@@ -429,6 +762,90 @@ definitions:
         maxLength: 500
         minLength: 1
         example: correct horse battery staple
+  depositItem:
+    type: object
+    required:
+    - id
+    - chain_id
+    - tx_hash
+    - from_addr
+    - to_addr
+    - amount
+    - token_symbol
+    - status
+    - block_no
+    - created_at
+    properties:
+      amount:
+        type: string
+        example: "1000000000000000000"
+      block_no:
+        type: integer
+        format: int64
+        example: 12345678
+      chain_id:
+        type: integer
+        example: 1
+      confirmation_count:
+        type: integer
+        example: 32
+      created_at:
+        type: string
+        format: date-time
+        example: "2025-01-01T00:00:00Z"
+      from_addr:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      id:
+        type: string
+        format: uuid
+      status:
+        type: string
+        enum:
+        - confirmed
+        - safe
+        - finalized
+        - failed
+        example: finalized
+      to_addr:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      token_addr:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      token_symbol:
+        type: string
+        example: ETH
+      tx_hash:
+        type: string
+        example: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+  getChainsResponse:
+    type: object
+    required:
+    - chains
+    properties:
+      chains:
+        type: array
+        items:
+          $ref: '#/definitions/chainItem'
+  getDepositsResponse:
+    type: object
+    required:
+    - deposits
+    properties:
+      deposits:
+        type: array
+        items:
+          $ref: '#/definitions/depositItem'
+  getPendingDepositsResponse:
+    type: object
+    required:
+    - pending_deposits
+    properties:
+      pending_deposits:
+        type: array
+        items:
+          $ref: '#/definitions/pendingDepositItem'
   getUserInfoResponse:
     type: object
     required:
@@ -459,6 +876,39 @@ definitions:
         description: Unix timestamp the user's info was last updated at
         type: integer
         example: 1591960808
+  getWalletAddressResponse:
+    type: object
+    required:
+    - address
+    - chain_type
+    - chain_id
+    - chain_name
+    - derivation_path
+    properties:
+      address:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      chain_id:
+        type: integer
+        example: 1
+      chain_name:
+        type: string
+        example: Ethereum Mainnet
+      chain_type:
+        type: string
+        example: evm
+      derivation_path:
+        type: string
+        example: m/44'/60'/0'/0/0
+  getWalletListResponse:
+    type: object
+    required:
+    - wallets
+    properties:
+      wallets:
+        type: array
+        items:
+          $ref: '#/definitions/walletItem'
   httpValidationErrorDetail:
     type: object
     required:
@@ -480,6 +930,24 @@ definitions:
     enum:
     - asc
     - desc
+  pendingDepositItem:
+    type: object
+    required:
+    - token_symbol
+    - pending_amount
+    - transaction_count
+    properties:
+      pending_amount:
+        description: Total pending deposit amount (as string to avoid precision loss)
+        type: string
+        example: "0.500000"
+      token_symbol:
+        type: string
+        example: ETH
+      transaction_count:
+        description: Number of pending deposit transactions
+        type: integer
+        example: 2
   postChangePasswordPayload:
     type: object
     required:
@@ -498,6 +966,16 @@ definitions:
         maxLength: 500
         minLength: 1
         example: correct horse battery staple
+  postCreateWalletPayload:
+    type: object
+    required:
+    - chain_id
+    properties:
+      chain_id:
+        description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC,
+          etc.)
+        type: integer
+        example: 1
   postForgotPasswordCompletePayload:
     type: object
     required:
@@ -610,6 +1088,57 @@ definitions:
         maxLength: 255
         minLength: 1
         example: user@example.com
+  postSignTransactionPayload:
+    type: object
+    required:
+    - chain_id
+    - from_address
+    - to
+    - value
+    - gas_limit
+    - max_fee_per_gas
+    - max_priority_fee_per_gas
+    - nonce
+    properties:
+      chain_id:
+        description: Chain ID
+        type: integer
+        example: 1
+      data:
+        description: Transaction data (for contract calls, optional)
+        type: string
+        format: byte
+        example: ""
+      from_address:
+        description: Address to sign from
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      gas_limit:
+        description: Gas limit
+        type: integer
+        format: int64
+        example: 21000
+      max_fee_per_gas:
+        description: Max fee per gas (EIP-1559, in wei, as string)
+        type: string
+        example: "20000000000"
+      max_priority_fee_per_gas:
+        description: Max priority fee per gas (EIP-1559, in wei, as string)
+        type: string
+        example: "1000000000"
+      nonce:
+        description: Transaction nonce
+        type: integer
+        format: int64
+        example: 0
+      to:
+        description: Recipient address
+        type: string
+        example: 0x8ba1f109551bD432803012645Hac136c22C177E7
+      value:
+        description: Amount in wei (as string to avoid precision loss)
+        type: string
+        example: "1000000000000000000"
   publicHttpError:
     type: object
     required:
@@ -696,6 +1225,54 @@ definitions:
         description: Indicates whether the registration process requires email confirmation
         type: boolean
         example: true
+  signTransactionResponse:
+    type: object
+    required:
+    - raw_transaction
+    - tx_hash
+    properties:
+      raw_transaction:
+        description: RLP-encoded signed transaction
+        type: string
+        format: byte
+      tx_hash:
+        description: Transaction hash (hex string with 0x prefix)
+        type: string
+        example: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+  walletItem:
+    type: object
+    required:
+    - id
+    - user_id
+    - address
+    - chain_type
+    - chain_id
+    - chain_name
+    - derivation_path
+    - address_index
+    - created_at
+    properties:
+      address:
+        type: string
+      address_index:
+        type: integer
+      chain_id:
+        type: integer
+      chain_name:
+        type: string
+      chain_type:
+        type: string
+      created_at:
+        type: string
+        format: date-time
+      derivation_path:
+        type: string
+      id:
+        type: string
+        format: uuid
+      user_id:
+        type: string
+        format: uuid
 parameters:
   registrationTokenParam:
     type: string

@@ -78,7 +78,21 @@ func runServer(flags Flags) {
 			}
 		}
 
-		err := router.Init(s)
+		// Initialize wallet keystore and seed manager
+		// This must be done before router initialization
+		err := initializeWallet(ctx, s)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to initialize wallet")
+		}
+
+		// Initialize and start blockchain scan service
+		// This starts scanning all active chains in the background
+		err = initializeScanService(ctx, s)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to initialize scan service")
+		}
+
+		err = router.Init(s)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to initialize router")
 		}

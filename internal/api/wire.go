@@ -32,6 +32,10 @@ var authServiceSet = wire.NewSet(
 	wire.Bind(new(AuthService), new(*auth.Service)),
 )
 
+// Note: Wallet services are initialized manually in cmd/server/wallet_init.go
+// because SeedManager needs to be initialized with password at startup.
+// We don't include wallet services in Wire to avoid circular dependencies.
+
 // InitNewServer returns a new Server instance.
 func InitNewServer(
 	_ config.Server,

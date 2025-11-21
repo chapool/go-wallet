@@ -51,6 +51,95 @@ func makeCacheKey(cols boil.Columns, nzDefaults []string) string {
 	return str
 }
 
+// Enum values for BlockStatus
+const (
+	BlockStatusConfirmed string = "confirmed"
+	BlockStatusSafe      string = "safe"
+	BlockStatusFinalized string = "finalized"
+	BlockStatusOrphaned  string = "orphaned"
+)
+
+func AllBlockStatus() []string {
+	return []string{
+		BlockStatusConfirmed,
+		BlockStatusSafe,
+		BlockStatusFinalized,
+		BlockStatusOrphaned,
+	}
+}
+
+// Enum values for CreditType
+const (
+	CreditTypeDeposit   string = "deposit"
+	CreditTypeWithdraw  string = "withdraw"
+	CreditTypeCollect   string = "collect"
+	CreditTypeRebalance string = "rebalance"
+	CreditTypeFreeze    string = "freeze"
+	CreditTypeUnfreeze  string = "unfreeze"
+)
+
+func AllCreditType() []string {
+	return []string{
+		CreditTypeDeposit,
+		CreditTypeWithdraw,
+		CreditTypeCollect,
+		CreditTypeRebalance,
+		CreditTypeFreeze,
+		CreditTypeUnfreeze,
+	}
+}
+
+// Enum values for BusinessType
+const (
+	BusinessTypeBlockchain       string = "blockchain"
+	BusinessTypeInternalTransfer string = "internal_transfer"
+	BusinessTypeAdminAdjust      string = "admin_adjust"
+)
+
+func AllBusinessType() []string {
+	return []string{
+		BusinessTypeBlockchain,
+		BusinessTypeInternalTransfer,
+		BusinessTypeAdminAdjust,
+	}
+}
+
+// Enum values for ReferenceType
+const (
+	ReferenceTypeBlockchainTX string = "blockchain_tx"
+	ReferenceTypeWithdraw     string = "withdraw"
+	ReferenceTypeCollect      string = "collect"
+	ReferenceTypeRebalance    string = "rebalance"
+)
+
+func AllReferenceType() []string {
+	return []string{
+		ReferenceTypeBlockchainTX,
+		ReferenceTypeWithdraw,
+		ReferenceTypeCollect,
+		ReferenceTypeRebalance,
+	}
+}
+
+// Enum values for CreditStatus
+const (
+	CreditStatusPending   string = "pending"
+	CreditStatusConfirmed string = "confirmed"
+	CreditStatusFinalized string = "finalized"
+	CreditStatusFailed    string = "failed"
+	CreditStatusFrozen    string = "frozen"
+)
+
+func AllCreditStatus() []string {
+	return []string{
+		CreditStatusPending,
+		CreditStatusConfirmed,
+		CreditStatusFinalized,
+		CreditStatusFailed,
+		CreditStatusFrozen,
+	}
+}
+
 // Enum values for ProviderType
 const (
 	ProviderTypeFCM string = "fcm"
@@ -61,5 +150,60 @@ func AllProviderType() []string {
 	return []string{
 		ProviderTypeFCM,
 		ProviderTypeApn,
+	}
+}
+
+// Enum values for TransactionType
+const (
+	TransactionTypeDeposit   string = "deposit"
+	TransactionTypeWithdraw  string = "withdraw"
+	TransactionTypeCollect   string = "collect"
+	TransactionTypeRebalance string = "rebalance"
+)
+
+func AllTransactionType() []string {
+	return []string{
+		TransactionTypeDeposit,
+		TransactionTypeWithdraw,
+		TransactionTypeCollect,
+		TransactionTypeRebalance,
+	}
+}
+
+// Enum values for TransactionStatus
+const (
+	TransactionStatusConfirmed string = "confirmed"
+	TransactionStatusSafe      string = "safe"
+	TransactionStatusFinalized string = "finalized"
+	TransactionStatusFailed    string = "failed"
+)
+
+func AllTransactionStatus() []string {
+	return []string{
+		TransactionStatusConfirmed,
+		TransactionStatusSafe,
+		TransactionStatusFinalized,
+		TransactionStatusFailed,
+	}
+}
+
+// Enum values for WithdrawStatus
+const (
+	WithdrawStatusUserWithdrawRequest string = "user_withdraw_request"
+	WithdrawStatusSigning             string = "signing"
+	WithdrawStatusPending             string = "pending"
+	WithdrawStatusProcessing          string = "processing"
+	WithdrawStatusConfirmed           string = "confirmed"
+	WithdrawStatusFailed              string = "failed"
+)
+
+func AllWithdrawStatus() []string {
+	return []string{
+		WithdrawStatusUserWithdrawRequest,
+		WithdrawStatusSigning,
+		WithdrawStatusPending,
+		WithdrawStatusProcessing,
+		WithdrawStatusConfirmed,
+		WithdrawStatusFailed,
 	}
 }

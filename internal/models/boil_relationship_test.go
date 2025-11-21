@@ -11,9 +11,14 @@ func TestToOne(t *testing.T) {
 	t.Run("AccessTokenToUserUsingUser", testAccessTokenToOneUserUsingUser)
 	t.Run("AppUserProfileToUserUsingUser", testAppUserProfileToOneUserUsingUser)
 	t.Run("ConfirmationTokenToUserUsingUser", testConfirmationTokenToOneUserUsingUser)
+	t.Run("CreditToTokenUsingToken", testCreditToOneTokenUsingToken)
+	t.Run("CreditToUserUsingUser", testCreditToOneUserUsingUser)
 	t.Run("PasswordResetTokenToUserUsingUser", testPasswordResetTokenToOneUserUsingUser)
 	t.Run("PushTokenToUserUsingUser", testPushTokenToOneUserUsingUser)
 	t.Run("RefreshTokenToUserUsingUser", testRefreshTokenToOneUserUsingUser)
+	t.Run("WalletToUserUsingUser", testWalletToOneUserUsingUser)
+	t.Run("WithdrawToTokenUsingToken", testWithdrawToOneTokenUsingToken)
+	t.Run("WithdrawToUserUsingUser", testWithdrawToOneUserUsingUser)
 }
 
 // TestOneToOne tests cannot be run in parallel
@@ -25,11 +30,16 @@ func TestOneToOne(t *testing.T) {
 // TestToMany tests cannot be run in parallel
 // or deadlocks can occur.
 func TestToMany(t *testing.T) {
+	t.Run("TokenToCredits", testTokenToManyCredits)
+	t.Run("TokenToWithdraws", testTokenToManyWithdraws)
 	t.Run("UserToAccessTokens", testUserToManyAccessTokens)
 	t.Run("UserToConfirmationTokens", testUserToManyConfirmationTokens)
+	t.Run("UserToCredits", testUserToManyCredits)
 	t.Run("UserToPasswordResetTokens", testUserToManyPasswordResetTokens)
 	t.Run("UserToPushTokens", testUserToManyPushTokens)
 	t.Run("UserToRefreshTokens", testUserToManyRefreshTokens)
+	t.Run("UserToWallets", testUserToManyWallets)
+	t.Run("UserToWithdraws", testUserToManyWithdraws)
 }
 
 // TestToOneSet tests cannot be run in parallel
@@ -38,9 +48,14 @@ func TestToOneSet(t *testing.T) {
 	t.Run("AccessTokenToUserUsingAccessTokens", testAccessTokenToOneSetOpUserUsingUser)
 	t.Run("AppUserProfileToUserUsingAppUserProfile", testAppUserProfileToOneSetOpUserUsingUser)
 	t.Run("ConfirmationTokenToUserUsingConfirmationTokens", testConfirmationTokenToOneSetOpUserUsingUser)
+	t.Run("CreditToTokenUsingCredits", testCreditToOneSetOpTokenUsingToken)
+	t.Run("CreditToUserUsingCredits", testCreditToOneSetOpUserUsingUser)
 	t.Run("PasswordResetTokenToUserUsingPasswordResetTokens", testPasswordResetTokenToOneSetOpUserUsingUser)
 	t.Run("PushTokenToUserUsingPushTokens", testPushTokenToOneSetOpUserUsingUser)
 	t.Run("RefreshTokenToUserUsingRefreshTokens", testRefreshTokenToOneSetOpUserUsingUser)
+	t.Run("WalletToUserUsingWallets", testWalletToOneSetOpUserUsingUser)
+	t.Run("WithdrawToTokenUsingWithdraws", testWithdrawToOneSetOpTokenUsingToken)
+	t.Run("WithdrawToUserUsingWithdraws", testWithdrawToOneSetOpUserUsingUser)
 }
 
 // TestToOneRemove tests cannot be run in parallel
@@ -60,11 +75,16 @@ func TestOneToOneRemove(t *testing.T) {}
 // TestToManyAdd tests cannot be run in parallel
 // or deadlocks can occur.
 func TestToManyAdd(t *testing.T) {
+	t.Run("TokenToCredits", testTokenToManyAddOpCredits)
+	t.Run("TokenToWithdraws", testTokenToManyAddOpWithdraws)
 	t.Run("UserToAccessTokens", testUserToManyAddOpAccessTokens)
 	t.Run("UserToConfirmationTokens", testUserToManyAddOpConfirmationTokens)
+	t.Run("UserToCredits", testUserToManyAddOpCredits)
 	t.Run("UserToPasswordResetTokens", testUserToManyAddOpPasswordResetTokens)
 	t.Run("UserToPushTokens", testUserToManyAddOpPushTokens)
 	t.Run("UserToRefreshTokens", testUserToManyAddOpRefreshTokens)
+	t.Run("UserToWallets", testUserToManyAddOpWallets)
+	t.Run("UserToWithdraws", testUserToManyAddOpWithdraws)
 }
 
 // TestToManySet tests cannot be run in parallel
