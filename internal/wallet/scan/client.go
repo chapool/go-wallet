@@ -14,6 +14,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var balanceOfMethodID = common.Hex2Bytes("70a08231")
+
 // RPCClient 封装以太坊 RPC 客户端，支持多个 URL 和故障转移
 type RPCClient struct {
 	urls    []string
@@ -155,6 +157,110 @@ func (c *RPCClient) FilterLogs(ctx context.Context, query ethereum.FilterQuery) 
 	}
 
 	return logs, nil
+}
+
+// SendTransaction 发送已签名的交易
+func (c *RPCClient) SendTransaction(ctx context.Context, tx *types.Transaction) error {
+	client, err := c.getClient(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get RPC client")
+	}
+
+	if err := client.SendTransaction(ctx, tx); err != nil {
+		return errors.Wrap(err, "failed to send transaction")
+	}
+
+	return nil
+}
+
+// SuggestGasTipCap 建议 Gas 小费上限 (EIP-1559)
+func (c *RPCClient) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
+	client, err := c.getClient(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get RPC client")
+	}
+
+	tipCap, err := client.SuggestGasTipCap(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to suggest gas tip cap")
+	}
+
+	return tipCap, nil
+}
+
+// EstimateGas 估算 Gas 用量
+func (c *RPCClient) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	client, err := c.getClient(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get RPC client")
+	}
+
+	gas, err := client.EstimateGas(ctx, msg)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to estimate gas")
+	}
+
+	return gas, nil
+}
+
+// BalanceAt returns the balance of an address at the latest known block.
+func (c *RPCClient) BalanceAt(ctx context.Context, address common.Address) (*big.Int, error) {
+	client, err := c.getClient(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get RPC client")
+	}
+
+	balance, err := client.BalanceAt(ctx, address, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get balance")
+	}
+
+	return balance, nil
+}
+
+// PendingNonceAt returns the pending nonce for the given address.
+func (c *RPCClient) PendingNonceAt(ctx context.Context, address common.Address) (uint64, error) {
+	client, err := c.getClient(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get RPC client")
+	}
+
+	nonce, err := client.PendingNonceAt(ctx, address)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get pending nonce")
+	}
+
+	return nonce, nil
+}
+
+// TokenBalance returns the ERC20 token balance for the given account.
+func (c *RPCClient) TokenBalance(ctx context.Context, tokenAddress, account common.Address) (*big.Int, error) {
+	client, err := c.getClient(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get RPC client")
+	}
+
+	if len(balanceOfMethodID) == 0 {
+		return nil, errors.New("balanceOf method ID is not configured")
+	}
+
+	const abiPaddedAddressLength = 32
+	data := make([]byte, 0, len(balanceOfMethodID)+abiPaddedAddressLength)
+	data = append(data, balanceOfMethodID...)
+	data = append(data, common.LeftPadBytes(account.Bytes(), abiPaddedAddressLength)...)
+
+	callMsg := ethereum.CallMsg{
+		To:   &tokenAddress,
+		Data: data,
+	}
+
+	resp, err := client.CallContract(ctx, callMsg, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to call balanceOf")
+	}
+
+	balance := new(big.Int).SetBytes(resp)
+	return balance, nil
 }
 
 // getClient 获取当前可用的客户端，如果失败则尝试下一个

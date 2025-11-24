@@ -132,7 +132,7 @@ func (a *analyzer) analyzeETHTransfer(ctx context.Context, chainID int, tx *type
 		Amount:            tx.Value().String(),
 		Type:              "deposit",
 		Status:            "confirmed",
-		ConfirmationCount: null.Int{},
+		ConfirmationCount: null.IntFrom(0), // 初始确认数为 0（交易刚被确认）
 	}
 
 	if err := transaction.Insert(ctx, a.db, boil.Infer()); err != nil {
@@ -226,7 +226,7 @@ func (a *analyzer) analyzeERC20Transfers(ctx context.Context, chainID int, tx *t
 			Amount:            amount.String(),
 			Type:              "deposit",
 			Status:            "confirmed",
-			ConfirmationCount: null.Int{},
+			ConfirmationCount: null.IntFrom(0), // 初始确认数为 0（交易刚被确认）
 		}
 
 		if err := transaction.Insert(ctx, a.db, boil.Infer()); err != nil {

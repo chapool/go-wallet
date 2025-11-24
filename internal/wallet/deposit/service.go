@@ -76,7 +76,7 @@ func (s *service) ProcessFinalizedDeposits(ctx context.Context, chainID int) err
 		qm.Where(`
 			NOT EXISTS (
 				SELECT 1 FROM credits 
-				WHERE credits.reference_id = transactions.id 
+				WHERE credits.reference_id = transactions.id::text 
 				AND credits.reference_type = 'blockchain_tx'
 			)
 		`),
@@ -87,13 +87,34 @@ func (s *service) ProcessFinalizedDeposits(ctx context.Context, chainID int) err
 		return errors.Wrap(err, "failed to query finalized deposits")
 	}
 
+	log.Info().
+		Int("chain_id", chainID).
+		Int("count", len(transactions)).
+		Msg("Found finalized deposits to process")
+
 	for _, tx := range transactions {
+		log.Debug().
+			Str("tx_hash", tx.TXHash).
+			Str("tx_id", tx.ID).
+			Int64("block_no", tx.BlockNo).
+			Str("status", tx.Status).
+			Msg("Processing finalized deposit")
+
 		if err := s.ProcessDeposit(ctx, tx); err != nil {
 			log.Err(err).
 				Str("tx_hash", tx.TXHash).
+				Str("tx_id", tx.ID).
 				Int("chain_id", chainID).
 				Msg("Failed to process finalized deposit")
+			// 继续处理其他交易，不中断
+			continue
 		}
+
+		log.Info().
+			Str("tx_hash", tx.TXHash).
+			Str("tx_id", tx.ID).
+			Int("chain_id", chainID).
+			Msg("Successfully processed finalized deposit")
 	}
 
 	return nil
@@ -101,6 +122,13 @@ func (s *service) ProcessFinalizedDeposits(ctx context.Context, chainID int) err
 
 // CreateCredit 创建 Credits 记录
 func (s *service) CreateCredit(ctx context.Context, transaction *models.Transaction) (*models.Credit, error) {
+	log.Debug().
+		Str("tx_hash", transaction.TXHash).
+		Str("tx_id", transaction.ID).
+		Str("to_addr", transaction.ToAddr).
+		Int("chain_id", transaction.ChainID).
+		Msg("Creating credit for transaction")
+
 	// 获取钱包信息（通过地址查找）
 	wallet, err := models.Wallets(
 		models.WalletWhere.ChainID.EQ(transaction.ChainID),
@@ -108,14 +136,28 @@ func (s *service) CreateCredit(ctx context.Context, transaction *models.Transact
 	).One(ctx, s.db)
 
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.Errorf("wallet not found for address %s on chain_id %d", transaction.ToAddr, transaction.ChainID)
+		}
 		return nil, errors.Wrapf(err, "failed to get wallet for address %s", transaction.ToAddr)
 	}
+
+	log.Debug().
+		Str("wallet_id", wallet.ID).
+		Str("user_id", wallet.UserID).
+		Str("address", wallet.Address).
+		Msg("Found wallet for transaction")
 
 	// 获取代币信息
 	token, err := s.getTokenInfo(ctx, transaction.ChainID, transaction.TokenAddr.String)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get token info")
 	}
+
+	log.Debug().
+		Int("token_id", token.ID).
+		Str("token_symbol", token.TokenSymbol).
+		Msg("Found token for transaction")
 
 	// 创建 Credits 记录
 	credit := &models.Credit{

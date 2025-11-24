@@ -165,6 +165,11 @@ func (s *service) ScanChainBlock(ctx context.Context, chainID int, blockNumber *
 	return nil
 }
 
+// GetClient 获取指定链的 RPC 客户端
+func (s *service) GetClient(ctx context.Context, chainID int) (*RPCClient, error) {
+	return s.getOrCreateClient(ctx, chainID)
+}
+
 // getOrCreateClient 获取或创建 RPC 客户端
 func (s *service) getOrCreateClient(ctx context.Context, chainID int) (*RPCClient, error) {
 	s.clientsMu.RLock()

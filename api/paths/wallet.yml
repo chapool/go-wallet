@@ -249,4 +249,306 @@ paths:
           description: PublicHTTPError
           schema:
             $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+  
+  /api/v1/wallet/balance/pending:
+    get:
+      summary: Get pending deposit balance total
+      operationId: GetPendingDepositBalanceRoute
+      description: |-
+        Get total pending deposit balance for the authenticated user.
+        Returns the sum of all deposits with status 'pending' or 'confirmed' (not yet finalized).
+        This is the balance that is still being confirmed on the blockchain.
+      tags:
+        - wallet
+      security:
+        - Bearer: []
+      produces:
+        - application/json
+      parameters:
+        - name: chain_id
+          type: integer
+          in: query
+          required: false
+          description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC, etc.)
+      responses:
+        "200":
+          description: Pending deposit balance retrieved successfully
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/PendingDepositBalanceResponse"
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+  
+  /api/v1/wallet/balance/total:
+    get:
+      summary: Get total balance
+      operationId: GetTotalBalanceRoute
+      description: |-
+        Get total finalized balance for the authenticated user.
+        Returns the sum of all finalized credits (deposits that have been confirmed and finalized).
+      tags:
+        - wallet
+      security:
+        - Bearer: []
+      produces:
+        - application/json
+      parameters:
+        - name: chain_id
+          type: integer
+          in: query
+          required: false
+          description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC, etc.)
+      responses:
+        "200":
+          description: Total balance retrieved successfully
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/TotalBalanceResponse"
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+  
+  /api/v1/wallet/balance/tokens:
+    get:
+      summary: Get balance by token
+      operationId: GetBalanceByTokenRoute
+      description: |-
+        Get balance breakdown by token for the authenticated user.
+        Returns a list of all tokens with their finalized balances.
+      tags:
+        - wallet
+      security:
+        - Bearer: []
+      produces:
+        - application/json
+      parameters:
+        - name: chain_id
+          type: integer
+          in: query
+          required: false
+          description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC, etc.)
+      responses:
+        "200":
+          description: Balance by token retrieved successfully
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/GetBalanceByTokenResponse"
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+
+  /api/v1/wallet/withdraw:
+    post:
+      summary: Request withdraw
+      operationId: PostWithdrawRoute
+      description: |-
+        Request a withdrawal from the wallet.
+        Checks balance and creates a withdrawal request.
+      tags:
+        - wallet
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/PostWithdrawPayload"
+      responses:
+        "200":
+          description: Withdraw request created successfully
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/WithdrawResponse"
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPValidationError"
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+
+  /api/v1/wallet/withdraws:
+    get:
+      summary: Get withdraw history
+      operationId: GetWithdrawsRoute
+      description: |-
+        Get withdrawal history for the authenticated user.
+      tags:
+        - wallet
+      security:
+        - Bearer: []
+      produces:
+        - application/json
+      parameters:
+        - name: chain_id
+          type: integer
+          in: query
+          required: false
+          description: Chain ID
+        - name: token_id
+          type: integer
+          in: query
+          required: false
+          description: Token ID
+        - name: status
+          type: string
+          in: query
+          required: false
+          description: Filter by status
+        - $ref: "../definitions/common.yml#/parameters/offsetParam"
+        - $ref: "../definitions/common.yml#/parameters/limitParam"
+      responses:
+        "200":
+          description: Withdraw history retrieved successfully
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/GetWithdrawsResponse"
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+
+  /api/v1/wallet/collect:
+    post:
+      summary: Trigger manual collection
+      operationId: PostCollectRoute
+      description: |-
+        Manually trigger collection for a specific wallet.
+        Moves funds from user wallet to hot wallet.
+      tags:
+        - wallet
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/PostCollectPayload"
+      responses:
+        "200":
+          description: Collection initiated successfully
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/CollectResponse"
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPValidationError"
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+
+  /api/v1/wallet/collects:
+    get:
+      summary: Get collect history
+      operationId: GetCollectsRoute
+      description: |-
+        Get collection history for the authenticated user.
+        Returns all collect transactions (type='collect') for user wallets.
+      tags:
+        - wallet
+      security:
+        - Bearer: []
+      produces:
+        - application/json
+      parameters:
+        - name: chain_id
+          type: integer
+          in: query
+          required: false
+          description: Chain ID
+        - name: status
+          type: string
+          in: query
+          required: false
+          description: Filter by transaction status
+          enum: [confirmed, safe, finalized, failed]
+        - $ref: "../definitions/common.yml#/parameters/offsetParam"
+        - $ref: "../definitions/common.yml#/parameters/limitParam"
+      responses:
+        "200":
+          description: Collect history retrieved successfully
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/GetCollectsResponse"
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+
+  /api/v1/wallet/rebalance:
+    post:
+      summary: Trigger manual rebalance
+      operationId: PostRebalanceRoute
+      description: |-
+        Manually trigger rebalance between two hot wallets.
+        Moves funds from one hot wallet to another on the same chain.
+      tags:
+        - wallet
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/PostRebalancePayload"
+      responses:
+        "200":
+          description: Rebalance completed successfully
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/RebalanceResponse"
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPValidationError"
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
 

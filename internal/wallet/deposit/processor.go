@@ -51,10 +51,11 @@ func (p *transactionStatusProcessor) updateTransactionStatus(ctx context.Context
 		finalizedBlocks = int64(chain.FinalizedBlocks.Int)
 	}
 
-	// 查询所有待更新的交易
+	// 查询所有待更新的交易（包括所有状态，因为确认数需要持续更新）
+	// 注意：finalized 状态的交易也需要更新确认数，以便追踪
 	transactions, err := models.Transactions(
 		models.TransactionWhere.ChainID.EQ(chainID),
-		models.TransactionWhere.Status.IN([]string{"confirmed", "safe"}),
+		models.TransactionWhere.Status.IN([]string{"confirmed", "safe", "finalized"}),
 		qm.OrderBy("block_no ASC"),
 	).All(ctx, p.db)
 
@@ -62,10 +63,47 @@ func (p *transactionStatusProcessor) updateTransactionStatus(ctx context.Context
 		return errors.Wrap(err, "failed to query transactions")
 	}
 
+	log.Info().
+		Int("chain_id", chainID).
+		Int64("latest_block", latestBlockNumber.Int64()).
+		Int64("confirmation_blocks", confirmationBlocks).
+		Int64("finalized_blocks", finalizedBlocks).
+		Int("pending_tx_count", len(transactions)).
+		Msg("Updating transaction confirmation status")
+
 	updatedCount := 0
 	for _, tx := range transactions {
 		// 计算确认数
 		confirmationCount := latestBlockNumber.Int64() - tx.BlockNo
+
+		// 获取当前确认数（用于对比）
+		currentConfirmationCount := int64(0)
+		if tx.ConfirmationCount.Valid {
+			currentConfirmationCount = int64(tx.ConfirmationCount.Int)
+		}
+
+		log.Info().
+			Int("chain_id", chainID).
+			Str("tx_hash", tx.TXHash).
+			Str("tx_id", tx.ID).
+			Int64("tx_block_no", tx.BlockNo).
+			Int64("latest_block", latestBlockNumber.Int64()).
+			Int64("current_confirmation_count", currentConfirmationCount).
+			Int64("calculated_confirmation_count", confirmationCount).
+			Str("current_status", tx.Status).
+			Msg("Calculating confirmation count for transaction")
+
+		// 确保确认数不为负数（防止区块重组等情况）
+		if confirmationCount < 0 {
+			log.Warn().
+				Int("chain_id", chainID).
+				Str("tx_hash", tx.TXHash).
+				Int64("block_no", tx.BlockNo).
+				Int64("latest_block", latestBlockNumber.Int64()).
+				Int64("confirmation_count", confirmationCount).
+				Msg("Negative confirmation count detected, skipping status update")
+			continue
+		}
 
 		// 更新确认数
 		tx.ConfirmationCount = null.IntFrom(int(confirmationCount))
@@ -81,45 +119,42 @@ func (p *transactionStatusProcessor) updateTransactionStatus(ctx context.Context
 			newStatus = "confirmed"
 		}
 
-		// 如果状态发生变化，更新
+		log.Debug().
+			Int("chain_id", chainID).
+			Str("tx_hash", tx.TXHash).
+			Str("current_status", tx.Status).
+			Str("calculated_status", newStatus).
+			Int64("confirmation_count", confirmationCount).
+			Int64("block_no", tx.BlockNo).
+			Int64("latest_block", latestBlockNumber.Int64()).
+			Int64("finalized_blocks", finalizedBlocks).
+			Msg("Evaluating transaction status update")
+
+		// 确保 ConfirmationCount 字段被正确设置
+		tx.ConfirmationCount = null.IntFrom(int(confirmationCount))
+
+		// 如果状态发生变化，更新状态和确认数
 		if tx.Status != newStatus {
-			oldStatus := tx.Status
-			tx.Status = newStatus
-			_, err := tx.Update(ctx, p.db, boil.Whitelist(models.TransactionColumns.Status, models.TransactionColumns.ConfirmationCount, models.TransactionColumns.UpdatedAt))
-			if err != nil {
+			if err := p.updateTransactionStatusAndConfirmation(ctx, tx, newStatus, confirmationCount, chainID, latestBlockNumber.Int64()); err != nil {
 				log.Error().
 					Str("tx_hash", tx.TXHash).
 					Err(err).
-					Msg("Failed to update transaction status")
+					Msg("Failed to update transaction status and confirmation count")
 				continue
 			}
+			updatedCount++
+			continue
+		}
 
-			if err := p.updateCreditStatus(ctx, tx, newStatus); err != nil {
-				log.Error().
-					Str("tx_hash", tx.TXHash).
-					Err(err).
-					Msg("Failed to sync credit status with transaction status")
-			}
-
-			log.Debug().
+		// 状态没有变化，只更新确认数
+		if err := p.updateConfirmationCountOnly(ctx, tx, confirmationCount, chainID, latestBlockNumber.Int64()); err != nil {
+			log.Error().
 				Int("chain_id", chainID).
 				Str("tx_hash", tx.TXHash).
-				Str("old_status", oldStatus).
-				Str("new_status", newStatus).
 				Int64("confirmation_count", confirmationCount).
-				Msg("Transaction status updated")
-
-			updatedCount++
-		} else {
-			// 只更新确认数
-			_, err := tx.Update(ctx, p.db, boil.Whitelist(models.TransactionColumns.ConfirmationCount, models.TransactionColumns.UpdatedAt))
-			if err != nil {
-				log.Error().
-					Str("tx_hash", tx.TXHash).
-					Err(err).
-					Msg("Failed to update transaction confirmation count")
-				continue
-			}
+				Err(err).
+				Msg("Failed to update transaction confirmation count")
+			continue
 		}
 	}
 
@@ -163,4 +198,88 @@ func mapTransactionToCreditStatus(txStatus string) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// updateTransactionStatusAndConfirmation 更新交易状态和确认数
+func (p *transactionStatusProcessor) updateTransactionStatusAndConfirmation(
+	ctx context.Context,
+	tx *models.Transaction,
+	newStatus string,
+	confirmationCount int64,
+	chainID int,
+	latestBlock int64,
+) error {
+	oldStatus := tx.Status
+	tx.Status = newStatus
+	tx.ConfirmationCount = null.IntFrom(int(confirmationCount))
+
+	_, err := tx.Update(ctx, p.db, boil.Whitelist(
+		models.TransactionColumns.Status,
+		models.TransactionColumns.ConfirmationCount,
+		models.TransactionColumns.UpdatedAt,
+	))
+	if err != nil {
+		return errors.Wrap(err, "failed to update transaction status and confirmation count")
+	}
+
+	// 同步更新 credits 状态
+	if err := p.updateCreditStatus(ctx, tx, newStatus); err != nil {
+		log.Error().
+			Str("tx_hash", tx.TXHash).
+			Err(err).
+			Msg("Failed to sync credit status with transaction status")
+		// 不返回错误，因为交易状态已经更新成功
+	}
+
+	log.Info().
+		Int("chain_id", chainID).
+		Str("tx_hash", tx.TXHash).
+		Str("old_status", oldStatus).
+		Str("new_status", newStatus).
+		Int64("confirmation_count", confirmationCount).
+		Int64("block_no", tx.BlockNo).
+		Int64("latest_block", latestBlock).
+		Msg("Transaction status updated")
+
+	return nil
+}
+
+// updateConfirmationCountOnly 只更新确认数（状态不变）
+func (p *transactionStatusProcessor) updateConfirmationCountOnly(
+	ctx context.Context,
+	tx *models.Transaction,
+	confirmationCount int64,
+	chainID int,
+	latestBlock int64,
+) error {
+	tx.ConfirmationCount = null.IntFrom(int(confirmationCount))
+
+	rowsAffected, err := tx.Update(ctx, p.db, boil.Whitelist(
+		models.TransactionColumns.ConfirmationCount,
+		models.TransactionColumns.UpdatedAt,
+	))
+	if err != nil {
+		return errors.Wrap(err, "failed to update transaction confirmation count")
+	}
+
+	if rowsAffected == 0 {
+		log.Warn().
+			Int("chain_id", chainID).
+			Str("tx_hash", tx.TXHash).
+			Str("tx_id", tx.ID).
+			Int64("confirmation_count", confirmationCount).
+			Msg("No rows affected when updating confirmation count")
+	}
+
+	log.Info().
+		Int("chain_id", chainID).
+		Str("tx_hash", tx.TXHash).
+		Str("status", tx.Status).
+		Int64("confirmation_count", confirmationCount).
+		Int64("block_no", tx.BlockNo).
+		Int64("latest_block", latestBlock).
+		Int64("rows_affected", rowsAffected).
+		Msg("Transaction confirmation count updated (status unchanged)")
+
+	return nil
 }

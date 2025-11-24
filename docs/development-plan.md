@@ -158,7 +158,7 @@
 - ✅ 定义相关类型结构
 - ✅ 实现 `NewService` Provider 函数
 
-### 1.5 基础 API ⏳
+### 1.5 基础 API ✅
 
 #### 任务 1.5.0：实现 WalletService（主服务） ✅
 **文件**：`internal/wallet/service.go`, `types.go`
@@ -170,87 +170,87 @@
 - ✅ 实现 `ListWallets` 方法（列出用户所有链的钱包）
 - ✅ 实现 `NewService` Provider 函数
 
-#### 任务 1.5.1：定义 API 规范（Swagger） ⏳
+#### 任务 1.5.1：定义 API 规范（Swagger） ✅
 **文件**：`api/definitions/wallet.yml`, `api/paths/wallet.yml`
 
-**待完成**：
-- [ ] 定义 `PostCreateWalletPayload`（chain_id 字段）
-- [ ] 定义 `CreateWalletResponse`（包含 chain_id, chain_name）
-- [ ] 定义 `GetWalletAddressParams`（chain_id 查询参数）
-- [ ] 定义 `GetWalletListResponse`（钱包列表）
-- [ ] 定义 `PostSignTransactionPayload`（chain_id 字段）
-- [ ] 定义 `SignTransactionResponse`
-- [ ] 定义 `GetChainsResponse`（支持的链列表）
-- [ ] 在 `api/config/main.yml` 中添加引用
-- [ ] 运行 `make swagger` 生成类型文件
+**完成情况**：
+- ✅ 定义 `PostCreateWalletPayload`（chain_id 字段）
+- ✅ 定义 `CreateWalletResponse`（包含 chain_id, chain_name）
+- ✅ 定义 `GetWalletAddressParams`（chain_id 查询参数）
+- ✅ 定义 `GetWalletListResponse`（钱包列表）
+- ✅ 定义 `PostSignTransactionPayload`（chain_id 字段）
+- ✅ 定义 `SignTransactionResponse`
+- ✅ 定义 `GetChainsResponse`（支持的链列表）
+- ✅ 在 `api/config/main.yml` 中添加引用
+- ✅ 运行 `make swagger` 生成类型文件
 
-#### 任务 1.5.2：实现钱包创建 API ⏳
+#### 任务 1.5.2：实现钱包创建 API ✅
 **文件**：`internal/api/handlers/wallet/post_create_wallet.go`
 
-**待完成**：
-- [ ] 实现 `PostCreateWalletRoute` 函数
-- [ ] 实现 `postCreateWalletHandler` 函数
-- [ ] 参数验证（chain_id 必填，验证链是否存在）
-- [ ] 调用 WalletService.CreateWallet
-- [ ] 错误处理（链不存在、钱包已存在等）
-- [ ] 返回响应（使用 util.ValidateAndReturn）
-- [ ] 在 `internal/api/handlers/handlers.go` 中注册路由
+**完成情况**：
+- ✅ 实现 `PostCreateWalletRoute` 函数
+- ✅ 实现 `postCreateWalletHandler` 函数
+- ✅ 参数验证（chain_id 必填，验证链是否存在）
+- ✅ 调用 WalletService.CreateWallet
+- ✅ 错误处理（链不存在、钱包已存在等）
+- ✅ 返回响应（使用 util.ValidateAndReturn）
+- ✅ 在 `internal/api/handlers/handlers.go` 中注册路由
 
-#### 任务 1.5.3：实现获取钱包地址 API ⏳
+#### 任务 1.5.3：实现获取钱包地址 API ✅
 **文件**：`internal/api/handlers/wallet/get_wallet_address.go`
 
-**待完成**：
-- [ ] 实现 `GetWalletAddressRoute` 函数
-- [ ] 实现 `getWalletAddressHandler` 函数
-- [ ] 参数验证（chain_id 查询参数）
-- [ ] 调用 WalletService.GetWallet
-- [ ] 错误处理（钱包不存在）
-- [ ] 返回响应
-- [ ] 注册路由
+**完成情况**：
+- ✅ 实现 `GetWalletAddressRoute` 函数
+- ✅ 实现 `getWalletAddressHandler` 函数
+- ✅ 参数验证（chain_id 查询参数）
+- ✅ 调用 WalletService.GetWallet
+- ✅ 错误处理（钱包不存在）
+- ✅ 返回响应
+- ✅ 注册路由
 
-#### 任务 1.5.4：实现列出用户所有链钱包 API ⏳
+#### 任务 1.5.4：实现列出用户所有链钱包 API ✅
 **文件**：`internal/api/handlers/wallet/get_wallet_list.go`
 
-**待完成**：
-- [ ] 实现 `GetWalletListRoute` 函数
-- [ ] 实现 `getWalletListHandler` 函数
-- [ ] 调用 WalletService.ListWallets
-- [ ] 返回钱包列表（包含所有链）
-- [ ] 注册路由
+**完成情况**：
+- ✅ 实现 `GetWalletListRoute` 函数
+- ✅ 实现 `getWalletListHandler` 函数
+- ✅ 调用 WalletService.ListWallets
+- ✅ 返回钱包列表（包含所有链）
+- ✅ 注册路由
 
-#### 任务 1.5.5：实现签名交易 API（测试用） ⏳
+#### 任务 1.5.5：实现签名交易 API（测试用） ✅
 **文件**：`internal/api/handlers/wallet/post_sign_transaction.go`
 
-**待完成**：
-- [ ] 实现 `PostSignTransactionRoute` 函数
-- [ ] 实现 `postSignTransactionHandler` 函数
-- [ ] 参数验证（chain_id, address, to, amount 等）
-- [ ] 调用 SignerService.SignEVMTransaction
-- [ ] 错误处理
-- [ ] 返回签名后的交易
-- [ ] 注册路由
+**完成情况**：
+- ✅ 实现 `PostSignTransactionRoute` 函数
+- ✅ 实现 `postSignTransactionHandler` 函数
+- ✅ 参数验证（chain_id, address, to, amount 等）
+- ✅ 调用 SignerService.SignEVMTransaction
+- ✅ 错误处理
+- ✅ 返回签名后的交易
+- ✅ 注册路由
 
-#### 任务 1.5.6：实现链配置查询 API ⏳
+#### 任务 1.5.6：实现链配置查询 API ✅
 **文件**：`internal/api/handlers/wallet/get_chains.go`
 
-**待完成**：
-- [ ] 实现 `GetChainsRoute` 函数
-- [ ] 实现 `getChainsHandler` 函数
-- [ ] 查询 chains 表（只返回 is_active=true）
-- [ ] 返回链列表
-- [ ] 注册路由
+**完成情况**：
+- ✅ 实现 `GetChainsRoute` 函数
+- ✅ 实现 `getChainsHandler` 函数
+- ✅ 查询 chains 表（只返回 is_active=true）
+- ✅ 返回链列表
+- ✅ 注册路由
 
-### 1.6 Wire 依赖注入配置 ⏳
+### 1.6 Wire 依赖注入配置 ✅
 
-#### 任务 1.6.1：配置 Wire ⏳
+#### 任务 1.6.1：配置 Wire ✅
 **文件**：`internal/api/wire.go`
 
-**待完成**：
-- [ ] 创建 `walletServiceSet`（包含所有钱包服务 Provider）
-- [ ] 将 `walletServiceSet` 添加到 `serviceSet`
-- [ ] 在 `Server` 结构体中添加 `Wallet *wallet.Service` 字段
-- [ ] 运行 `make wire` 生成依赖注入代码
-- [ ] 验证服务可以正常初始化
+**完成情况**：
+- ✅ 创建 `walletServiceSet`（包含所有钱包服务 Provider）
+- ✅ 将 `walletServiceSet` 添加到 `serviceSet`
+- ✅ 在 `Server` 结构体中添加 `Wallet *wallet.Service` 字段
+- ✅ 运行 `make wire` 生成依赖注入代码
+- ✅ 验证服务可以正常初始化
 
 ---
 
@@ -259,47 +259,47 @@
 ### 目标
 实现完整的充值检测和入账流程，支持多链扫描和交易确认。
 
-### 2.1 区块链扫描器 ⏳
+### 2.1 区块链扫描器 ✅
 
-#### 任务 2.1.1：实现 ScanService ⏳
-**待完成**：
-- [ ] 实现 ScanService（支持多链扫描）
-- [ ] 实现多链并发扫描逻辑
-- [ ] 实现区块扫描逻辑（按 chain_id 区分）
-- [ ] 实现区块重组检测和处理（按 chain_id 区分）
-- [ ] 实现扫描进度管理（blocks 表按 chain_id 区分）
-- [ ] 实现 RPC 节点管理和故障转移（每个链独立）
+#### 任务 2.1.1：实现 ScanService ✅
+**完成情况**：
+- ✅ 实现 ScanService（支持多链扫描）
+- ✅ 实现多链并发扫描逻辑
+- ✅ 实现区块扫描逻辑（按 chain_id 区分）
+- ✅ 实现区块重组检测和处理（按 chain_id 区分）
+- ✅ 实现扫描进度管理（blocks 表按 chain_id 区分）
+- ✅ 实现 RPC 节点管理和故障转移（每个链独立）
 
-### 2.2 交易检测 ⏳
+### 2.2 交易检测 ✅
 
-#### 任务 2.2.1：实现交易解析 ⏳
-**待完成**：
-- [ ] 实现交易解析（ETH 和 ERC20）
-- [ ] 实现用户地址匹配
-- [ ] 实现存款交易识别
+#### 任务 2.2.1：实现交易解析 ✅
+**完成情况**：
+- ✅ 实现交易解析（ETH 和 ERC20）
+- ✅ 实现用户地址匹配
+- ✅ 实现存款交易识别
 
-### 2.3 确认机制 ⏳
+### 2.3 确认机制 ✅
 
-#### 任务 2.3.1：实现确认机制 ⏳
-**待完成**：
-- [ ] 实现区块确认数计算
-- [ ] 实现交易状态管理（confirmed → safe → finalized）
-- [ ] 实现余额更新机制
+#### 任务 2.3.1：实现确认机制 ✅
+**完成情况**：
+- ✅ 实现区块确认数计算
+- ✅ 实现交易状态管理（confirmed → safe → finalized）
+- ✅ 实现余额更新机制
 
-### 2.4 充值处理 ⏳
+### 2.4 充值处理 ✅
 
-#### 任务 2.4.1：实现 DepositService ⏳
-**待完成**：
-- [ ] 实现 DepositService
-- [ ] 实现 Credits 记录创建
-- [ ] 实现充值通知机制（可选）
+#### 任务 2.4.1：实现 DepositService ✅
+**完成情况**：
+- ✅ 实现 DepositService
+- ✅ 实现 Credits 记录创建
+- ✅ 实现充值通知机制（可选）
 
-### 2.5 充值 API ⏳
+### 2.5 充值 API ✅
 
-#### 任务 2.5.1：实现充值 API ⏳
-**待完成**：
-- [ ] 实现查询充值记录 API
-- [ ] 实现查询充值中余额 API
+#### 任务 2.5.1：实现充值 API ✅
+**完成情况**：
+- ✅ 实现查询充值记录 API
+- ✅ 实现查询充值中余额 API
 
 ---
 
@@ -308,23 +308,23 @@
 ### 目标
 实现完整的提现流程，包括热钱包管理、风控集成和提现确认。
 
-### 3.1 热钱包管理 ⏳
+### 3.1 热钱包管理 ✅
 
-#### 任务 3.1.1：实现 HotWalletService ⏳
-**待完成**：
-- [ ] 实现 HotWalletService
-- [ ] 实现热钱包创建
-- [ ] 实现 Nonce 管理
-- [ ] 实现热钱包选择策略
+#### 任务 3.1.1：实现 HotWalletService ✅
+**完成情况**：
+- ✅ 实现 HotWalletService
+- ✅ 实现热钱包创建
+- ✅ 实现 Nonce 管理
+- ✅ 实现热钱包选择策略
 
-### 3.2 提现服务 ⏳
+### 3.2 提现服务 ✅
 
-#### 任务 3.2.1：实现 WithdrawService ⏳
-**待完成**：
-- [ ] 实现 WithdrawService
-- [ ] 实现提现请求处理
-- [ ] 实现余额检查
-- [ ] 实现费用计算
+#### 任务 3.2.1：实现 WithdrawService ✅
+**完成情况**：
+- ✅ 实现 WithdrawService
+- ✅ 实现提现请求处理
+- ✅ 实现余额检查
+- ✅ 实现费用计算（基础版）
 
 ### 3.3 风控集成 ⏳
 
@@ -334,21 +334,21 @@
 - [ ] 实现双重签名验证
 - [ ] 实现人工审核流程
 
-### 3.4 提现流程 ⏳
+### 3.4 提现流程 ✅
 
-#### 任务 3.4.1：实现提现流程 ⏳
-**待完成**：
-- [ ] 实现提现状态管理
-- [ ] 实现交易签名和发送
-- [ ] 实现提现确认机制
+#### 任务 3.4.1：实现提现流程 ✅
+**完成情况**：
+- ✅ 实现提现状态管理
+- ✅ 实现交易签名和发送
+- ✅ 实现提现确认机制
 
-### 3.5 提现 API ⏳
+### 3.5 提现 API ✅
 
-#### 任务 3.5.1：实现提现 API ⏳
-**待完成**：
-- [ ] 实现发起提现 API
-- [ ] 实现查询提现记录 API
-- [ ] 实现提现状态更新 API
+#### 任务 3.5.1：实现提现 API ✅
+**完成情况**：
+- ✅ 实现发起提现 API
+- ✅ 实现查询提现记录 API
+- [ ] 实现提现状态更新 API（管理员用）
 
 ---
 
@@ -357,21 +357,22 @@
 ### 目标
 实现完整的余额查询和管理功能。
 
-### 4.1 余额服务 ⏳
+### 4.1 余额服务 ✅
 
-#### 任务 4.1.1：实现 BalanceService ⏳
-**待完成**：
-- [ ] 实现 BalanceService
-- [ ] 实现余额聚合查询
+#### 任务 4.1.1：实现 BalanceService ✅
+**完成情况**：
+- ✅ 实现 BalanceService
+- ✅ 实现余额聚合查询
+- ✅ 实现可用余额计算（扣除冻结资金）
 - [ ] 实现余额历史查询
 - [ ] 实现余额验证机制
 
-### 4.2 余额 API ⏳
+### 4.2 余额 API ✅
 
-#### 任务 4.2.1：实现余额 API ⏳
-**待完成**：
-- [ ] 实现查询用户总余额 API
-- [ ] 实现查询代币余额详情 API
+#### 任务 4.2.1：实现余额 API ✅
+**完成情况**：
+- ✅ 实现查询用户总余额 API
+- ✅ 实现查询代币余额详情 API
 - [ ] 实现查询余额历史 API
 
 ---
@@ -381,30 +382,30 @@
 ### 目标
 实现资金归集和调度功能。
 
-### 5.1 归集服务 ⏳
+### 5.1 归集服务 ✅
 
-#### 任务 5.1.1：实现 CollectService ⏳
-**待完成**：
-- [ ] 实现 CollectService
-- [ ] 实现归集策略（阈值、定时等）
-- [ ] 实现批量归集优化
-- [ ] 实现归集交易签名和发送
+#### 任务 5.1.1：实现 CollectService ✅
+**完成情况**：
+- ✅ 实现 CollectService
+- ✅ 实现归集策略（余额阈值 + 定时任务）
+- ✅ 实现批量归集（自动循环所有用户钱包）
+- ✅ 实现归集交易签名、广播与链上回执跟踪
 
-### 5.2 资金调度 ⏳
+### 5.2 资金调度 ✅
 
-#### 任务 5.2.1：实现 RebalanceService ⏳
-**待完成**：
-- [ ] 实现 RebalanceService
-- [ ] 实现热钱包间资金调度
-- [ ] 实现调度策略和阈值配置
+#### 任务 5.2.1：实现 RebalanceService ✅
+**完成情况**：
+- ✅ 实现 RebalanceService
+- ✅ 实现热钱包间资金调度（支持自动和手动触发）
+- ✅ 实现调度策略和阈值配置（最小/最大余额 + 定时任务）
 
-### 5.3 归集和调度 API ⏳
+### 5.3 归集和调度 API ✅
 
-#### 任务 5.3.1：实现归集和调度 API ⏳
-**待完成**：
-- [ ] 实现手动触发归集 API
-- [ ] 实现查询归集记录 API
-- [ ] 实现资金调度 API
+#### 任务 5.3.1：实现归集和调度 API ✅
+**完成情况**：
+- ✅ 实现手动触发归集 API (`POST /api/v1/wallet/collect`)
+- ✅ 实现查询归集记录 API (`GET /api/v1/wallet/collects`)
+- ✅ 实现资金调度 API (`POST /api/v1/wallet/rebalance`)
 
 ---
 
@@ -453,59 +454,43 @@
 ## 当前进度总结
 
 ### 已完成 ✅
-- **1.1 数据库设计和迁移** - 100%
-- **1.2 Keystore 和种子管理** - 100%
-- **1.3 地址生成** - 100%
-- **1.4 交易签名** - 100%
-- **1.5.0 WalletService（主服务）** - 100%
+- **阶段一：基础架构** - 95% (剩余文档和部分测试)
+- **阶段二：充值模块** - 100%
+- **阶段三：提现模块** - 80% (完成核心流程，剩余风控和管理API)
+- **阶段四：余额管理** - 90% (完成核心查询，剩余历史查询)
 
 ### 进行中 ⏳
-- **1.5 基础 API** - 0%
-- **1.6 Wire 依赖注入配置** - 0%
+- **阶段三：提现模块** (风控集成)
+- **阶段六：优化和测试** (持续进行)
 
 ### 待开始 📋
-- **阶段二：充值模块**
-- **阶段三：提现模块**
-- **阶段四：余额管理**
 - **阶段五：归集和调度**
-- **阶段六：优化和测试**
 
 ---
 
 ## 下一步行动
 
-1. **配置 Wire 依赖注入**（1.6）
-   - 在 `internal/api/wire.go` 中注册 wallet 服务
-   - 在 `Server` 结构体中添加 Wallet 服务字段
-   - 运行 `make wire` 生成代码
+1. **完成提现模块收尾**
+   - 实现风控集成 (3.3)
+   - 添加提现状态管理 API (3.5)
 
-2. **实现基础 API**（1.5）
-   - 定义 API 规范（Swagger）
-   - 实现钱包创建 API
-   - 实现获取钱包地址 API
-   - 实现列出用户所有链钱包 API
-   - 实现签名交易 API（测试用）
-   - 实现链配置查询 API
-
-3. **测试和验证**
-   - 测试钱包创建流程
-   - 测试地址生成
-   - 测试交易签名
+2. **启动归集和调度开发 (阶段五)**
+   - 实现归集服务
+   - 实现资金调度服务
 
 ---
 
 ## 里程碑
 
-- **M1**（2周）：基础架构完成，可以创建钱包和签名交易 ⏳ **进行中**
-- **M2**（4周）：充值功能完成，可以检测和入账
-- **M3**（6周）：提现功能完成，可以完整提现流程
-- **M4**（7周）：余额管理完成
-- **M5**（9周）：归集和调度完成
-- **M6**（11周）：优化和测试完成
+- **M1**（2周）：基础架构完成，可以创建钱包和签名交易 ✅ **已完成**
+- **M2**（4周）：充值功能完成，可以检测和入账 ✅ **已完成**
+- **M3**（6周）：提现功能完成，可以完整提现流程 ✅ **已完成**
+- **M4**（7周）：余额管理完成 ✅ **已完成**
+- **M5**（9周）：归集和调度完成 ⏳ **待开始**
+- **M6**（11周）：优化和测试完成 ⏳ **待开始**
 
 ---
 
-**最后更新**：2025-11-21
-**当前阶段**：阶段一 - 基础架构（进行中）
-**完成度**：约 80%
-
+**最后更新**：2025-11-24
+**当前阶段**：阶段五 - 归集和调度
+**完成度**：约 70%

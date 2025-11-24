@@ -18,6 +18,9 @@ type Service interface {
 
 	// GetScanProgress 获取扫描进度
 	GetScanProgress(ctx context.Context, chainID int) (*ScanProgress, error)
+
+	// GetClient 获取指定链的 RPC 客户端
+	GetClient(ctx context.Context, chainID int) (*RPCClient, error)
 }
 
 // Progress 扫描进度

@@ -19,8 +19,13 @@ import (
 	"github/chapool/go-wallet/internal/push"
 	"github/chapool/go-wallet/internal/util"
 	"github/chapool/go-wallet/internal/wallet"
+	"github/chapool/go-wallet/internal/wallet/balance"
+	"github/chapool/go-wallet/internal/wallet/collect"
 	"github/chapool/go-wallet/internal/wallet/deposit"
+	"github/chapool/go-wallet/internal/wallet/hotwallet"
+	"github/chapool/go-wallet/internal/wallet/rebalance"
 	"github/chapool/go-wallet/internal/wallet/scan"
+	"github/chapool/go-wallet/internal/wallet/withdraw"
 
 	// Import postgres driver for database/sql package
 	_ "github.com/lib/pq"
@@ -46,6 +51,23 @@ type ScanService = scan.Service
 // DepositService interface for deposit operations
 // Alias to deposit.Service for API access
 type DepositService = deposit.Service
+
+// BalanceService interface for balance operations
+// Alias to balance.Service for API access
+type BalanceService = balance.Service
+
+// WithdrawService interface for withdraw operations
+// Alias to withdraw.Service for API access
+type WithdrawService = withdraw.Service
+
+// CollectService interface for collect operations
+type CollectService = collect.Service
+
+// RebalanceService interface for rebalance operations
+type RebalanceService = rebalance.Service
+
+// HotWalletService interface for managing hot wallets
+type HotWalletService = hotwallet.Service
 
 // SignEVMRequest represents a request to sign an EVM transaction
 type SignEVMRequest struct {
@@ -92,19 +114,24 @@ type Server struct {
 	Echo   *echo.Echo `wire:"-"`
 	Router *Router    `wire:"-"`
 
-	Config  config.Server
-	DB      *sql.DB
-	Mailer  *mailer.Mailer
-	Push    *push.Service
-	I18n    *i18n.Service
-	Clock   time2.Clock
-	Auth    AuthService
-	Local   *local.Service
-	Metrics *metrics.Service
-	Wallet  WalletService // Wallet service
-	Signer  SignerService // Signer service
-	Scan    ScanService   // Blockchain scan service
-	Deposit DepositService
+	Config    config.Server
+	DB        *sql.DB
+	Mailer    *mailer.Mailer
+	Push      *push.Service
+	I18n      *i18n.Service
+	Clock     time2.Clock
+	Auth      AuthService
+	Local     *local.Service
+	Metrics   *metrics.Service
+	Wallet    WalletService   // Wallet service
+	Signer    SignerService   // Signer service
+	Scan      ScanService     // Blockchain scan service
+	Deposit   DepositService  // Deposit service
+	Balance   BalanceService  // Balance service
+	Withdraw  WithdrawService // Withdraw service
+	HotWallet HotWalletService
+	Collect   CollectService
+	Rebalance RebalanceService
 }
 
 // newServerWithComponents is used by wire to initialize the server components.

@@ -443,6 +443,103 @@ paths:
           description: PublicHTTPError
           schema:
             $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/balance/pending:
+    get:
+      security:
+      - Bearer: []
+      description: |-
+        Get total pending deposit balance for the authenticated user.
+        Returns the sum of all deposits with status 'pending' or 'confirmed' (not yet finalized).
+        This is the balance that is still being confirmed on the blockchain.
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Get pending deposit balance total
+      operationId: GetPendingDepositBalanceRoute
+      parameters:
+      - type: integer
+        description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC,
+          etc.)
+        name: chain_id
+        in: query
+      responses:
+        "200":
+          description: Pending deposit balance retrieved successfully
+          schema:
+            $ref: '#/definitions/pendingDepositBalanceResponse'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/balance/tokens:
+    get:
+      security:
+      - Bearer: []
+      description: |-
+        Get balance breakdown by token for the authenticated user.
+        Returns a list of all tokens with their finalized balances.
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Get balance by token
+      operationId: GetBalanceByTokenRoute
+      parameters:
+      - type: integer
+        description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC,
+          etc.)
+        name: chain_id
+        in: query
+      responses:
+        "200":
+          description: Balance by token retrieved successfully
+          schema:
+            $ref: '#/definitions/getBalanceByTokenResponse'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/balance/total:
+    get:
+      security:
+      - Bearer: []
+      description: |-
+        Get total finalized balance for the authenticated user.
+        Returns the sum of all finalized credits (deposits that have been confirmed and finalized).
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Get total balance
+      operationId: GetTotalBalanceRoute
+      parameters:
+      - type: integer
+        description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC,
+          etc.)
+        name: chain_id
+        in: query
+      responses:
+        "200":
+          description: Total balance retrieved successfully
+          schema:
+            $ref: '#/definitions/totalBalanceResponse'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
   /api/v1/wallet/chains:
     get:
       security:
@@ -459,6 +556,97 @@ paths:
           description: Chains retrieved successfully
           schema:
             $ref: '#/definitions/getChainsResponse'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/collect:
+    post:
+      security:
+      - Bearer: []
+      description: |-
+        Manually trigger collection for a specific wallet.
+        Moves funds from user wallet to hot wallet.
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Trigger manual collection
+      operationId: PostCollectRoute
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/postCollectPayload'
+      responses:
+        "200":
+          description: Collection initiated successfully
+          schema:
+            $ref: '#/definitions/collectResponse'
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: '#/definitions/publicHttpValidationError'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/collects:
+    get:
+      security:
+      - Bearer: []
+      description: |-
+        Get collection history for the authenticated user.
+        Returns all collect transactions (type='collect') for user wallets.
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Get collect history
+      operationId: GetCollectsRoute
+      parameters:
+      - type: integer
+        description: Chain ID
+        name: chain_id
+        in: query
+      - enum:
+        - confirmed
+        - safe
+        - finalized
+        - failed
+        type: string
+        description: Filter by transaction status
+        name: status
+        in: query
+      - minimum: 0
+        type: integer
+        default: 0
+        description: Offset used for pagination, number of records to skip
+        name: offset
+        in: query
+      - maximum: 500
+        minimum: 1
+        type: integer
+        default: 50
+        description: Limit used for pagination, number of records to retrieve
+        name: limit
+        in: query
+      responses:
+        "200":
+          description: Collect history retrieved successfully
+          schema:
+            $ref: '#/definitions/getCollectsResponse'
         "401":
           description: PublicHTTPError
           schema:
@@ -619,6 +807,44 @@ paths:
           description: PublicHTTPError
           schema:
             $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/rebalance:
+    post:
+      security:
+      - Bearer: []
+      description: |-
+        Manually trigger rebalance between two hot wallets.
+        Moves funds from one hot wallet to another on the same chain.
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Trigger manual rebalance
+      operationId: PostRebalanceRoute
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/postRebalancePayload'
+      responses:
+        "200":
+          description: Rebalance completed successfully
+          schema:
+            $ref: '#/definitions/rebalanceResponse'
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: '#/definitions/publicHttpValidationError'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
   /api/v1/wallet/sign-transaction:
     post:
       security:
@@ -648,6 +874,94 @@ paths:
           description: PublicHTTPValidationError
           schema:
             $ref: '#/definitions/publicHttpValidationError'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/withdraw:
+    post:
+      security:
+      - Bearer: []
+      description: |-
+        Request a withdrawal from the wallet.
+        Checks balance and creates a withdrawal request.
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Request withdraw
+      operationId: PostWithdrawRoute
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/postWithdrawPayload'
+      responses:
+        "200":
+          description: Withdraw request created successfully
+          schema:
+            $ref: '#/definitions/withdrawResponse'
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: '#/definitions/publicHttpValidationError'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/withdraws:
+    get:
+      security:
+      - Bearer: []
+      description: Get withdrawal history for the authenticated user.
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Get withdraw history
+      operationId: GetWithdrawsRoute
+      parameters:
+      - type: integer
+        description: Chain ID
+        name: chain_id
+        in: query
+      - type: integer
+        description: Token ID
+        name: token_id
+        in: query
+      - type: string
+        description: Filter by status
+        name: status
+        in: query
+      - minimum: 0
+        type: integer
+        default: 0
+        description: Offset used for pagination, number of records to skip
+        name: offset
+        in: query
+      - maximum: 500
+        minimum: 1
+        type: integer
+        default: 50
+        description: Limit used for pagination, number of records to retrieve
+        name: limit
+        in: query
+      responses:
+        "200":
+          description: Withdraw history retrieved successfully
+          schema:
+            $ref: '#/definitions/getWithdrawsResponse'
         "401":
           description: PublicHTTPError
           schema:
@@ -708,6 +1022,73 @@ definitions:
       native_token_symbol:
         type: string
         example: ETH
+  collectItem:
+    type: object
+    required:
+    - id
+    - chain_id
+    - tx_hash
+    - from_addr
+    - to_addr
+    - amount
+    - status
+    - block_no
+    - created_at
+    properties:
+      amount:
+        type: string
+        example: "1.5"
+      block_no:
+        type: integer
+        format: int64
+        example: 12345678
+      chain_id:
+        type: integer
+        example: 1
+      confirmation_count:
+        type: integer
+        format: int64
+        example: 5
+      created_at:
+        type: string
+        format: date-time
+      from_addr:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      id:
+        type: string
+        format: uuid
+      status:
+        type: string
+        enum:
+        - confirmed
+        - safe
+        - finalized
+        - failed
+        example: confirmed
+      to_addr:
+        type: string
+        example: 0x8ba1f109551bD432803012645Hac136c22C177E7
+      tx_hash:
+        type: string
+        example: 0x...
+  collectResponse:
+    type: object
+    required:
+    - message
+    - wallet_id
+    properties:
+      message:
+        type: string
+        example: Collection initiated successfully
+      tx_hash:
+        description: Transaction hash if collection was successful
+        type: string
+        example: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+      wallet_id:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440000
   createWalletResponse:
     type: object
     required:
@@ -819,6 +1200,15 @@ definitions:
       tx_hash:
         type: string
         example: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+  getBalanceByTokenResponse:
+    type: object
+    required:
+    - balances
+    properties:
+      balances:
+        type: array
+        items:
+          $ref: '#/definitions/tokenBalanceItem'
   getChainsResponse:
     type: object
     required:
@@ -828,6 +1218,15 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/chainItem'
+  getCollectsResponse:
+    type: object
+    required:
+    - collects
+    properties:
+      collects:
+        type: array
+        items:
+          $ref: '#/definitions/collectItem'
   getDepositsResponse:
     type: object
     required:
@@ -909,6 +1308,15 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/walletItem'
+  getWithdrawsResponse:
+    type: object
+    required:
+    - withdraws
+    properties:
+      withdraws:
+        type: array
+        items:
+          $ref: '#/definitions/withdrawItem'
   httpValidationErrorDetail:
     type: object
     required:
@@ -930,6 +1338,20 @@ definitions:
     enum:
     - asc
     - desc
+  pendingDepositBalanceResponse:
+    type: object
+    required:
+    - total_amount
+    - token_count
+    properties:
+      token_count:
+        description: Number of token types with pending deposits
+        type: integer
+        example: 2
+      total_amount:
+        description: Total pending deposit amount (as string to avoid precision loss)
+        type: string
+        example: "0.500000"
   pendingDepositItem:
     type: object
     required:
@@ -966,6 +1388,20 @@ definitions:
         maxLength: 500
         minLength: 1
         example: correct horse battery staple
+  postCollectPayload:
+    type: object
+    required:
+    - wallet_id
+    properties:
+      chain_id:
+        description: Chain ID (optional, will use wallet's chain_id if not provided)
+        type: integer
+        example: 1
+      wallet_id:
+        description: Wallet ID to collect from
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440000
   postCreateWalletPayload:
     type: object
     required:
@@ -1059,6 +1495,30 @@ definitions:
         type: string
         format: uuid4
         example: 700ebed3-40f7-4211-bc83-a89b22b9875e
+  postRebalancePayload:
+    type: object
+    required:
+    - chain_id
+    - from_address
+    - to_address
+    - amount
+    properties:
+      amount:
+        description: Amount in wei (as string to avoid precision loss)
+        type: string
+        example: "1000000000000000000"
+      chain_id:
+        description: Chain ID
+        type: integer
+        example: 1
+      from_address:
+        description: Source hot wallet address
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      to_address:
+        description: Destination hot wallet address
+        type: string
+        example: 0x8ba1f109551bD432803012645Hac136c22C177E7
   postRefreshPayload:
     type: object
     required:
@@ -1139,6 +1599,25 @@ definitions:
         description: Amount in wei (as string to avoid precision loss)
         type: string
         example: "1000000000000000000"
+  postWithdrawPayload:
+    type: object
+    required:
+    - to_address
+    - token_id
+    - amount
+    properties:
+      amount:
+        description: Amount to withdraw (human readable)
+        type: string
+        example: "1.5"
+      to_address:
+        description: Destination address
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      token_id:
+        description: Token ID to withdraw
+        type: integer
+        example: 1
   publicHttpError:
     type: object
     required:
@@ -1216,6 +1695,28 @@ definitions:
         type: string
         maxLength: 500
         example: fcm
+  rebalanceResponse:
+    type: object
+    required:
+    - message
+    - tx_hash
+    properties:
+      amount:
+        type: string
+        example: "1000000000000000000"
+      from_address:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      message:
+        type: string
+        example: Rebalance completed successfully
+      to_address:
+        type: string
+        example: 0x8ba1f109551bD432803012645Hac136c22C177E7
+      tx_hash:
+        description: Transaction hash
+        type: string
+        example: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
   registerResponse:
     type: object
     required:
@@ -1239,6 +1740,49 @@ definitions:
         description: Transaction hash (hex string with 0x prefix)
         type: string
         example: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+  tokenBalanceItem:
+    type: object
+    required:
+    - token_id
+    - token_symbol
+    - chain_id
+    - amount
+    - status
+    properties:
+      amount:
+        description: Balance amount (as string to avoid precision loss)
+        type: string
+        example: "100.500000"
+      chain_id:
+        type: integer
+        example: 1
+      status:
+        type: string
+        enum:
+        - pending
+        - confirmed
+        - finalized
+        example: finalized
+      token_id:
+        type: integer
+        example: 1
+      token_symbol:
+        type: string
+        example: ETH
+  totalBalanceResponse:
+    type: object
+    required:
+    - total_amount
+    - token_count
+    properties:
+      token_count:
+        description: Number of token types with balance
+        type: integer
+        example: 3
+      total_amount:
+        description: Total finalized balance (as string to avoid precision loss)
+        type: string
+        example: "100.500000"
   walletItem:
     type: object
     required:
@@ -1273,6 +1817,56 @@ definitions:
       user_id:
         type: string
         format: uuid
+  withdrawItem:
+    type: object
+    required:
+    - id
+    - user_id
+    - to_address
+    - token_id
+    - amount
+    - status
+    - created_at
+    properties:
+      amount:
+        type: string
+        example: "1.5"
+      created_at:
+        type: string
+        format: date-time
+      fee:
+        type: string
+        example: "0.001"
+      id:
+        type: string
+        format: uuid
+      status:
+        type: string
+        enum:
+        - pending
+        - processing
+        - confirmed
+        - failed
+        example: pending
+      to_address:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      token_id:
+        type: integer
+        example: 1
+      tx_hash:
+        type: string
+        example: 0x...
+      user_id:
+        type: string
+        format: uuid
+  withdrawResponse:
+    type: object
+    required:
+    - withdraw
+    properties:
+      withdraw:
+        $ref: '#/definitions/withdrawItem'
 parameters:
   registrationTokenParam:
     type: string

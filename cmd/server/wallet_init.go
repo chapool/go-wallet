@@ -7,12 +7,17 @@ import (
 	"github/chapool/go-wallet/internal/api"
 	"github/chapool/go-wallet/internal/wallet"
 	"github/chapool/go-wallet/internal/wallet/address"
+	"github/chapool/go-wallet/internal/wallet/balance"
 	"github/chapool/go-wallet/internal/wallet/chain"
+	"github/chapool/go-wallet/internal/wallet/collect"
 	"github/chapool/go-wallet/internal/wallet/deposit"
+	"github/chapool/go-wallet/internal/wallet/hotwallet"
 	"github/chapool/go-wallet/internal/wallet/keystore"
+	"github/chapool/go-wallet/internal/wallet/rebalance"
 	"github/chapool/go-wallet/internal/wallet/scan"
 	"github/chapool/go-wallet/internal/wallet/seed"
 	"github/chapool/go-wallet/internal/wallet/signer"
+	"github/chapool/go-wallet/internal/wallet/withdraw"
 
 	"github.com/rs/zerolog/log"
 
@@ -20,11 +25,13 @@ import (
 )
 
 // initializeWallet initializes wallet keystore and seed manager at startup
-func initializeWallet(ctx context.Context, s *api.Server) error {
+//
+//nolint:ireturn // Returning interface is intentional
+func initializeWallet(ctx context.Context, s *api.Server) (seed.Manager, error) {
 	// Initialize keystore service
 	keystoreService, err := keystore.NewService(s.DB)
 	if err != nil {
-		return errors.Wrap(err, "failed to create keystore service")
+		return nil, errors.Wrap(err, "failed to create keystore service")
 	}
 
 	// Initialize seed manager
@@ -33,46 +40,52 @@ func initializeWallet(ctx context.Context, s *api.Server) error {
 	// Initialize address service
 	addressService, err := address.NewService(s.DB)
 	if err != nil {
-		return errors.Wrap(err, "failed to create address service")
+		return nil, errors.Wrap(err, "failed to create address service")
 	}
 
 	// Initialize keystore (create or decrypt)
 	if err := wallet.InitializeKeystore(ctx, s.DB, seedManager, keystoreService, addressService); err != nil {
-		return errors.Wrap(err, "failed to initialize keystore")
+		return nil, errors.Wrap(err, "failed to initialize keystore")
 	}
 
 	// Create wallet service
 	walletService, err := wallet.NewService(s.DB, seedManager, addressService)
 	if err != nil {
-		return errors.Wrap(err, "failed to create wallet service")
+		return nil, errors.Wrap(err, "failed to create wallet service")
 	}
 
 	// Create signer service
 	signerService, err := signer.NewService(seedManager, addressService)
 	if err != nil {
-		return errors.Wrap(err, "failed to create signer service")
+		return nil, errors.Wrap(err, "failed to create signer service")
 	}
 
 	// Store services in Server struct
 	s.Wallet = walletService
 	s.Signer = &signerServiceAdapter{signer: signerService}
 
-	return nil
+	return seedManager, nil
 }
 
 const (
-	// Default scan interval: 10 seconds
-	defaultScanInterval = 10 * time.Second
-	// Default block batch size: 100 blocks per scan
-	defaultBlockBatchSize = 100
-	// Default deposit backfill interval: 1 minute
-	defaultDepositBackfillInterval = time.Minute
+	// Default scan interval: 2 seconds (optimized for fast chains with ~0.5s block time)
+	// For chains with 0.5s block time, 2s interval means checking every ~4 blocks
+	defaultScanInterval = 2 * time.Second
+	// Default block batch size: 1000 blocks per scan (optimized for fast chains)
+	// Larger batch size for faster historical catch-up, but smaller batches per iteration
+	defaultBlockBatchSize = 1000
+	// Default deposit backfill interval: 30 seconds (reduced for faster processing)
+	defaultDepositBackfillInterval = 30 * time.Second
+	// Default collect interval for sweeping user addresses
+	defaultCollectInterval = 5 * time.Minute
+	// Default rebalance interval for hot wallets
+	defaultRebalanceInterval = 10 * time.Minute
 )
 
 // initializeScanService initializes and starts the blockchain scan service
 //
 //nolint:unparam // Error return is kept for future error handling (e.g., validation checks)
-func initializeScanService(ctx context.Context, s *api.Server) error {
+func initializeScanService(ctx context.Context, s *api.Server, seedManager seed.Manager) error {
 	log.Info().Msg("Initializing blockchain scan service")
 
 	// Initialize chain configuration service
@@ -81,6 +94,10 @@ func initializeScanService(ctx context.Context, s *api.Server) error {
 	// Initialize deposit service
 	depositService := deposit.NewService(s.DB)
 	s.Deposit = depositService
+
+	// Initialize balance service
+	balanceService := balance.NewService(s.DB)
+	s.Balance = balanceService
 
 	// Create scan service with default configuration
 	// These can be made configurable via environment variables in the future
@@ -106,7 +123,56 @@ func initializeScanService(ctx context.Context, s *api.Server) error {
 
 	startDepositBackfillWorker(ctx, chainService, depositService)
 
-	log.Info().Msg("Blockchain scan service started successfully")
+	// --- Initialize Withdraw Related Services ---
+
+	// Initialize address service (stateless, can be re-created)
+	addressService, err := address.NewService(s.DB)
+	if err != nil {
+		return errors.Wrap(err, "failed to create address service for withdraw")
+	}
+
+	// Initialize hot wallet service
+	hotWalletService := hotwallet.NewService(s.DB, addressService, seedManager)
+	s.HotWallet = hotWalletService
+
+	// Get signer service from adapter
+	signerAdapter, ok := s.Signer.(*signerServiceAdapter)
+	if !ok {
+		return errors.New("failed to get signer service adapter")
+	}
+	signerService := signerAdapter.signer
+
+	// Initialize withdraw service
+	withdrawService := withdraw.NewService(
+		s.DB,
+		balanceService,
+		hotWalletService,
+		scanService,
+		signerService,
+	)
+	s.Withdraw = withdrawService
+
+	collectService := collect.NewService(
+		s.DB,
+		chainService,
+		scanService,
+		hotWalletService,
+		signerService,
+	)
+	s.Collect = collectService
+	collectService.StartAutoCollect(ctx, defaultCollectInterval)
+
+	rebalanceService := rebalance.NewService(
+		s.DB,
+		chainService,
+		scanService,
+		hotWalletService,
+		signerService,
+	)
+	s.Rebalance = rebalanceService
+	rebalanceService.StartAutoRebalance(ctx, defaultRebalanceInterval)
+
+	log.Info().Msg("Blockchain scan and withdraw services started successfully")
 	return nil
 }
 

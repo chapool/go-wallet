@@ -15,6 +15,11 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const (
+	// rapidRescanDelay 快速链重新扫描延迟（避免过于频繁的RPC调用）
+	rapidRescanDelay = 100 * time.Millisecond
+)
+
 // chainScanner 单个链的扫描器
 type chainScanner struct {
 	db             *sql.DB
@@ -95,6 +100,52 @@ func (s *chainScanner) scanLoop(ctx context.Context, startBlock *big.Int) {
 	ticker := time.NewTicker(s.scanInterval)
 	defer ticker.Stop()
 
+	// 立即执行一次扫描，不等待第一个ticker
+	scanOnce := func() bool {
+		// 获取最新区块号
+		latestBlock, err := s.client.GetLatestBlockNumber(ctx)
+		if err != nil {
+			log.Error().
+				Int("chain_id", s.chainID).
+				Err(err).
+				Msg("Failed to get latest block number")
+			return false
+		}
+
+		hasNewBlocks := false
+		// 批量扫描区块
+		for currentBlock.Cmp(latestBlock) <= 0 {
+			hasNewBlocks = true
+			// 计算批次结束区块号
+			endBlock := new(big.Int).Add(currentBlock, big.NewInt(int64(s.blockBatchSize-1)))
+			if endBlock.Cmp(latestBlock) > 0 {
+				endBlock = new(big.Int).Set(latestBlock)
+			}
+
+			// 扫描批次
+			if err := s.scanBlockRange(ctx, currentBlock, endBlock); err != nil {
+				log.Error().
+					Int("chain_id", s.chainID).
+					Str("start_block", currentBlock.String()).
+					Str("end_block", endBlock.String()).
+					Err(err).
+					Msg("Failed to scan block range")
+				break
+			}
+
+			// 更新当前区块号
+			currentBlock = new(big.Int).Add(endBlock, big.NewInt(1))
+		}
+
+		// 无论是否有新区块，都需要更新交易状态和处理已终结的充值
+		// 这对于快速链特别重要，因为交易状态需要及时更新
+		s.runPostScanHooks(ctx, latestBlock)
+		return hasNewBlocks
+	}
+
+	// 立即执行一次
+	scanOnce()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -104,40 +155,15 @@ func (s *chainScanner) scanLoop(ctx context.Context, startBlock *big.Int) {
 			log.Info().Int("chain_id", s.chainID).Msg("Chain scanner stopped")
 			return
 		case <-ticker.C:
-			// 获取最新区块号
-			latestBlock, err := s.client.GetLatestBlockNumber(ctx)
-			if err != nil {
-				log.Error().
-					Int("chain_id", s.chainID).
-					Err(err).
-					Msg("Failed to get latest block number")
-				continue
+			// 执行扫描
+			hasNewBlocks := scanOnce()
+			// 如果有新区块，立即再检查一次（不等待ticker）
+			// 这样可以更快地处理快速链的新区块
+			if hasNewBlocks {
+				// 短暂延迟后再次检查，避免过于频繁的RPC调用
+				time.Sleep(rapidRescanDelay)
+				scanOnce()
 			}
-
-			// 批量扫描区块
-			for currentBlock.Cmp(latestBlock) <= 0 {
-				// 计算批次结束区块号
-				endBlock := new(big.Int).Add(currentBlock, big.NewInt(int64(s.blockBatchSize-1)))
-				if endBlock.Cmp(latestBlock) > 0 {
-					endBlock = new(big.Int).Set(latestBlock)
-				}
-
-				// 扫描批次
-				if err := s.scanBlockRange(ctx, currentBlock, endBlock); err != nil {
-					log.Error().
-						Int("chain_id", s.chainID).
-						Str("start_block", currentBlock.String()).
-						Str("end_block", endBlock.String()).
-						Err(err).
-						Msg("Failed to scan block range")
-					break
-				}
-
-				// 更新当前区块号
-				currentBlock = new(big.Int).Add(endBlock, big.NewInt(1))
-			}
-
-			s.runPostScanHooks(ctx, latestBlock)
 		}
 	}
 }
@@ -265,20 +291,40 @@ func (s *chainScanner) processBlockTransactions(ctx context.Context, block *type
 
 func (s *chainScanner) runPostScanHooks(ctx context.Context, latestBlock *big.Int) {
 	if s.depositService == nil || latestBlock == nil {
+		log.Warn().
+			Int("chain_id", s.chainID).
+			Msg("Skipping post-scan hooks: depositService is nil or latestBlock is nil")
 		return
 	}
 
+	log.Debug().
+		Int("chain_id", s.chainID).
+		Int64("latest_block", latestBlock.Int64()).
+		Msg("Running post-scan hooks: updating transaction status and processing finalized deposits")
+
+	// 更新交易确认状态（confirmed -> safe -> finalized）
 	if err := s.depositService.UpdateConfirmationStatus(ctx, s.chainID, latestBlock.Int64()); err != nil {
 		log.Error().
 			Int("chain_id", s.chainID).
+			Int64("latest_block", latestBlock.Int64()).
 			Err(err).
 			Msg("Failed to update deposit confirmations")
+	} else {
+		log.Debug().
+			Int("chain_id", s.chainID).
+			Int64("latest_block", latestBlock.Int64()).
+			Msg("Successfully updated transaction confirmation status")
 	}
 
+	// 处理已终结的充值（创建 credits 记录）
 	if err := s.depositService.ProcessFinalizedDeposits(ctx, s.chainID); err != nil {
 		log.Error().
 			Int("chain_id", s.chainID).
 			Err(err).
 			Msg("Failed to process finalized deposits")
+	} else {
+		log.Debug().
+			Int("chain_id", s.chainID).
+			Msg("Successfully processed finalized deposits")
 	}
 }
