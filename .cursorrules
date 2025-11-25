@@ -1267,7 +1267,4 @@ func (s *service) insertCollectTransaction(ctx context.Context, ...) error {
 - 全局配置默认值均为 `false`，需要显式启用
 - 管理员权限检查使用 `auth.RoleAdmin` 常量
 - 归集和调度操作不影响用户余额，只创建 `transactions` 记录
-- 全局配置默认值均为 `false`，需要显式启用
-- 管理员权限检查使用 `auth.RoleAdmin` 常量
-- 归集和调度操作不影响用户余额，只创建 `transactions` 记录
 
