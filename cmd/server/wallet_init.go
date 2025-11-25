@@ -194,7 +194,12 @@ func initializeScanService(ctx context.Context, s *api.Server, seedManager seed.
 		signerService,
 	)
 	s.Rebalance = rebalanceService
-	rebalanceService.StartAutoRebalance(ctx, defaultRebalanceInterval)
+	if s.Config.Wallet.EnableAutoRebalance {
+		log.Info().Msg("Auto rebalance is enabled, starting auto rebalance service")
+		rebalanceService.StartAutoRebalance(ctx, defaultRebalanceInterval)
+	} else {
+		log.Info().Msg("Auto rebalance is disabled, skipping auto rebalance service startup")
+	}
 
 	log.Info().Msg("Blockchain scan and withdraw services started successfully")
 	return nil

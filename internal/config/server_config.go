@@ -103,8 +103,9 @@ type I18n struct {
 }
 
 type Wallet struct {
-	EnableAutoCollect bool
-	EnableSigning     bool
+	EnableAutoCollect   bool
+	EnableAutoRebalance bool
+	EnableSigning       bool
 }
 
 type Server struct {
@@ -262,8 +263,9 @@ func DefaultServiceConfigFromEnv() Server {
 			BundleDirAbs:    util.GetEnv("SERVER_I18N_BUNDLE_DIR_ABS", filepath.Join(util.GetProjectRootDir(), "/web/i18n")), // /app/web/i18n
 		},
 		Wallet: Wallet{
-			EnableAutoCollect: util.GetEnvAsBool("WALLET_ENABLE_AUTO_COLLECT", false),
-			EnableSigning:     util.GetEnvAsBool("WALLET_ENABLE_SIGNING", true),
+			EnableAutoCollect:   util.GetEnvAsBool("WALLET_ENABLE_AUTO_COLLECT", false),
+			EnableAutoRebalance: util.GetEnvAsBool("WALLET_ENABLE_AUTO_REBALANCE", false),
+			EnableSigning:       util.GetEnvAsBool("WALLET_ENABLE_SIGNING", true),
 		},
 	}
 }

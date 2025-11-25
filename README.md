@@ -99,7 +99,7 @@ HD Wallet EVM 多链钱包系统是一个完整的托管钱包解决方案，采
 - ✅ 归集顺序优化（先 ERC20，后 Native Token）
 - ✅ 资金调度服务（热钱包间调度）
 - ✅ 归集和调度 API
-- ✅ 全局配置管理（自动归集开关、签名功能开关）
+- ✅ 全局配置管理（自动归集、自动调度、签名功能开关）
 
 ### 阶段六：优化和测试 ⏳
 - ⏳ 性能优化
@@ -185,6 +185,7 @@ HD Wallet EVM 多链钱包系统是一个完整的托管钱包解决方案，采
    
    # 钱包配置
    export WALLET_ENABLE_AUTO_COLLECT=false  # 是否启用自动归集
+   export WALLET_ENABLE_AUTO_REBALANCE=false # 是否启用自动调度
    export WALLET_ENABLE_SIGNING=false       # 是否启用签名功能
    
    # RPC 节点配置（示例）

@@ -2280,7 +2280,7 @@ type RiskControlService interface {
 - [x] 实现资金调度 API
 
 #### 5.4 全局配置
-- [x] 实现全局配置管理（EnableAutoCollect, EnableSigning）
+- [x] 实现全局配置管理（EnableAutoCollect, EnableAutoRebalance, EnableSigning）
 - [x] 实现环境变量配置加载
 - [x] 实现自动归集开关
 - [x] 实现签名功能开关
@@ -2558,13 +2558,15 @@ sequenceDiagram
 **配置结构**：
 ```go
 type Wallet struct {
-    EnableAutoCollect bool  // 是否启用自动归集（默认 false）
-    EnableSigning     bool  // 是否启用签名功能（默认 false）
+    EnableAutoCollect   bool  // 是否启用自动归集（默认 false）
+    EnableAutoRebalance bool  // 是否启用自动热钱包调度（默认 false）
+    EnableSigning       bool  // 是否启用签名功能（默认 false）
 }
 ```
 
 **环境变量**：
 - `WALLET_ENABLE_AUTO_COLLECT`: 控制是否启动自动归集服务（默认 `false`）
+- `WALLET_ENABLE_AUTO_REBALANCE`: 控制是否启动自动热钱包调度（默认 `false`）
 - `WALLET_ENABLE_SIGNING`: 控制是否允许交易签名（默认 `false`）
 
 **安全设计**：
