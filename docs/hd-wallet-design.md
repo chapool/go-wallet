@@ -1589,38 +1589,76 @@ GET /api/v1/wallet/deposits/pending?user_id={user_id}
 ### 12.3 提现状态管理
 
 **状态流转**：
-1. `user_withdraw_request`：用户发起提现请求
-2. `signing`：正在签名交易
-3. `pending`：交易已发送，等待确认
-4. `processing`：交易确认中
-5. `confirmed`：交易已确认
-6. `failed`：交易失败
+1. `user_withdraw_request`：用户发起提现请求，等待管理员审核
+2. `signing`：正在签名交易（已废弃，不再使用）
+3. `pending`：交易已发送，等待确认（0 < 确认数 < 确认阈值）
+4. `processing`：交易确认中（确认数 >= 确认阈值，但未达到最终确认）
+5. `confirmed`：交易已确认（达到最终确认数）
+6. `failed`：交易失败或管理员拒绝
+
+**重要说明**：
+- 用户发起提现请求后，状态初始为 `user_withdraw_request`，需要管理员审核
+- 管理员批准后，系统自动调用 `ProcessWithdraw` 处理提现
+- 管理员可以拒绝提现请求，状态变为 `failed`
+- 提现状态会根据交易确认数自动更新（pending → processing → confirmed）
 
 ### 12.4 WithdrawService（提现服务）
 
 ```go
 type WithdrawService interface {
-    // CreateWithdrawRequest 创建提现请求（必须指定 chain_id）
-    CreateWithdrawRequest(ctx context.Context, req *WithdrawRequest) (*Withdraw, error)
+    // RequestWithdraw 用户发起提现请求（必须指定 chain_id）
+    RequestWithdraw(ctx context.Context, userID string, req *WithdrawRequest) (*Withdraw, error)
+    
+    // ApproveWithdraw 管理员批准提现请求
+    ApproveWithdraw(ctx context.Context, withdrawID string) (*Withdraw, error)
+    
+    // RejectWithdraw 管理员拒绝提现请求
+    RejectWithdraw(ctx context.Context, withdrawID string, reason string) (*Withdraw, error)
     
     // ProcessWithdraw 处理提现（选择热钱包、签名、发送，按链处理）
+    // 只有状态为 user_withdraw_request 的提现才能被处理
     ProcessWithdraw(ctx context.Context, withdrawID string) error
     
-    // UpdateWithdrawStatus 更新提现状态（按链和交易哈希）
-    UpdateWithdrawStatus(ctx context.Context, chainID int, withdrawID string, status string, txHash string) error
+    // UpdateWithdrawStatus 根据交易确认数自动更新提现状态
+    // 状态流转：pending → processing → confirmed
+    UpdateWithdrawStatus(ctx context.Context, chainID int, latestBlockNumber int64) error
     
     // GetWithdraws 查询提现记录（支持按 chain_id 过滤）
     GetWithdraws(ctx context.Context, userID string, filters *WithdrawFilters) ([]*Withdraw, error)
 }
 ```
 
-### 12.5 热钱包选择策略
+### 12.5 热钱包管理
+
+#### 12.5.1 热钱包创建
+
+**API 接口**：
+```
+POST /api/v1/wallet/hot-wallet
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "chain_id": 1,
+  "device_name": "hot-wallet-1"
+}
+```
+
+**说明**：
+- 只有 `admin` 角色的用户可以创建热钱包
+- `chain_id` 必填，指定要创建热钱包的链
+- `device_name` 可选，用于标识热钱包设备
+- 系统会为热钱包生成地址并保存到 `wallets` 表（`is_hot_wallet = true`）
+
+#### 12.5.2 热钱包选择策略
 
 **选择逻辑**：
-1. 查询所有可用的热钱包（按 last_used_at 排序）
-2. 检查每个热钱包的余额是否充足
+1. 查询所有可用的热钱包（按 `last_used_at` 排序）
+2. 检查每个热钱包的余额是否充足：
+   - **Native Token 提现**：检查 `余额 >= 提现金额 + Gas 费用`
+   - **ERC20 Token 提现**：检查 `Token 余额 >= 提现金额` 且 `Native Token 余额 >= Gas 费用`
 3. 选择第一个余额充足的热钱包
-4. 获取该热钱包的当前 nonce
+4. 获取该热钱包的当前 nonce（原子性更新）
 
 ### 12.6 费用计算
 
@@ -1642,30 +1680,65 @@ Content-Type: application/json
 {
   "to_address": "0x...",
   "amount": "1.5",
-  "token_symbol": "USDT",
+  "token_id": 1,
   "chain_id": 1
 }
 ```
 
 **说明**：
 - `chain_id`: 必须指定目标链ID
-- `token_symbol`: 代币符号，需要在指定链上存在
-- 系统会根据 `chain_id` 选择对应链的热钱包进行签名和发送
+- `token_id`: 代币ID，需要在指定链上存在
+- 用户发起提现后，状态为 `user_withdraw_request`，需要管理员审核
+- 系统不会自动处理提现，必须等待管理员批准
 
 **响应**：
 ```json
 {
-  "withdraw_id": "uuid",
-  "signed_transaction": "0x...",
-  "transaction_hash": "0x...",
-  "withdraw_amount": "1.500000",
-  "actual_amount": "1.450000",
-  "fee": "0.050000",
-  "status": "pending"
+  "withdraw": {
+    "id": "uuid",
+    "user_id": "uuid",
+    "to_address": "0x...",
+    "token_id": 1,
+    "amount": "1.500000",
+    "fee": "0.050000",
+    "status": "user_withdraw_request",
+    "created_at": "2025-11-25T10:00:00Z"
+  }
 }
 ```
 
-#### 12.7.2 查询提现记录
+#### 12.7.2 管理员批准提现
+
+**请求**：
+```
+POST /api/v1/wallet/withdraw/{withdrawId}/approve
+Authorization: Bearer <admin_token>
+```
+
+**说明**：
+- 只有 `admin` 角色的用户可以批准提现
+- 批准后，系统自动调用 `ProcessWithdraw` 处理提现
+- 如果处理失败（如热钱包余额不足），状态会变为 `failed`
+
+#### 12.7.3 管理员拒绝提现
+
+**请求**：
+```
+POST /api/v1/wallet/withdraw/{withdrawId}/reject
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "reason": "Insufficient funds in hot wallet"  // 可选
+}
+```
+
+**说明**：
+- 只有 `admin` 角色的用户可以拒绝提现
+- 可以拒绝 `user_withdraw_request` 或 `failed` 状态的提现（如果仍有冻结资金）
+- 拒绝后，状态变为 `failed`，冻结的资金会被释放
+
+#### 12.7.4 查询提现记录
 
 **请求**：
 ```
@@ -1704,6 +1777,27 @@ GET /api/v1/wallet/withdraws?user_id={user_id}&status={status}&limit=20&offset=0
        │
        ▼
 ┌─────────────────────┐
+│  归集顺序优化       │
+│  1. 先归集 ERC20    │
+│  2. 再归集 Native   │
+└──────┬──────────────┘
+       │
+       ▼
+┌─────────────────────┐
+│  ERC20 归集？       │
+└──────┬──────────────┘
+       │
+       ├─ (是) ──┐
+       │         ▼
+       │    ┌─────────────────────┐
+       │    │  检查 Native Gas    │
+       │    │  不足则从热钱包充值 │
+       │    └──────┬──────────────┘
+       │           │
+       └─ (否) ────┘
+       │
+       ▼
+┌─────────────────────┐
 │  构建归集交易       │
 │  - from: 用户钱包   │
 │  - to: 热钱包       │
@@ -1716,27 +1810,32 @@ GET /api/v1/wallet/withdraws?user_id={user_id}&status={status}&limit=20&offset=0
        │
        ▼
 ┌─────────────────────┐
-│  创建 Credits 记录  │
-│  - 用户钱包：-amount│
-│  - 热钱包：+amount  │
+│  创建交易记录       │
+│  (不创建 Credits)   │
 └─────────────────────┘
 ```
+
+**重要说明**：
+- 归集操作**不会**影响用户余额，这是内部资金管理操作
+- 归集只创建 `transactions` 记录（type = 'collect'），不创建 `credits` 记录
+- ERC20 归集时，如果用户钱包的 Native Token 余额不足以支付 Gas，系统会从热钱包向用户钱包充值少量 Native Token
+- 归集顺序：先归集 ERC20 Token，再归集 Native Token，提高 Gas 效率
 
 ### 13.3 CollectService（归集服务）
 
 ```go
 type CollectService interface {
-    // CollectFunds 归集资金（必须指定 chain_id）
-    CollectFunds(ctx context.Context, chainID int, userID string, tokenID int, amount string) error
+    // CollectWallet 手动归集指定钱包的资金（管理员权限）
+    CollectWallet(ctx context.Context, walletID string, chainID *int) error
     
-    // BatchCollect 批量归集（支持多链）
-    BatchCollect(ctx context.Context, requests []*CollectRequest) error
-    
-    // AutoCollect 自动归集（定时任务，按链分别检查）
-    AutoCollect(ctx context.Context) error
-    
-    // CollectForChain 归集指定链的资金
+    // CollectForChain 归集指定链的资金（自动归集）
     CollectForChain(ctx context.Context, chainID int) error
+    
+    // StartAutoCollect 启动自动归集服务
+    StartAutoCollect(ctx context.Context, interval time.Duration)
+    
+    // StopAutoCollect 停止自动归集服务
+    StopAutoCollect()
 }
 ```
 
@@ -2108,31 +2207,40 @@ type RiskControlService interface {
 **目标**：实现完整的提现流程
 
 #### 3.1 热钱包管理
-- [ ] 实现 HotWalletService
-- [ ] 实现热钱包创建
-- [ ] 实现 Nonce 管理
-- [ ] 实现热钱包选择策略
+- [x] 实现 HotWalletService
+- [x] 实现热钱包创建
+- [x] 实现热钱包创建 API（管理员权限）
+- [x] 实现 Nonce 管理
+- [x] 实现热钱包选择策略
+- [x] 实现热钱包余额检查（Native Token 和 ERC20 Token）
 
 #### 3.2 提现服务
-- [ ] 实现 WithdrawService
-- [ ] 实现提现请求处理
-- [ ] 实现余额检查
-- [ ] 实现费用计算
+- [x] 实现 WithdrawService
+- [x] 实现提现请求处理
+- [x] 实现余额检查
+- [x] 实现费用计算
+- [x] 实现热钱包余额检查
+- [x] 实现提现状态自动更新机制（UpdateWithdrawStatus）
 
 #### 3.3 风控集成
+- [x] 实现管理员审核流程（ApproveWithdraw/RejectWithdraw）
+- [x] 实现提现请求初始状态为 `user_withdraw_request`
+- [x] 实现失败提现的手动拒绝
+- [x] 实现错误消息管理
 - [ ] 实现风控检查接口（可调用外部服务）
 - [ ] 实现双重签名验证
-- [ ] 实现人工审核流程
 
 #### 3.4 提现流程
-- [ ] 实现提现状态管理
-- [ ] 实现交易签名和发送
-- [ ] 实现提现确认机制
+- [x] 实现提现状态管理
+- [x] 实现状态流转：`user_withdraw_request` → `pending` → `processing` → `confirmed`
+- [x] 实现交易签名和发送
+- [x] 实现提现确认机制（基于交易确认数自动更新）
 
 #### 3.5 提现 API
-- [ ] 实现发起提现 API
-- [ ] 实现查询提现记录 API
-- [ ] 实现提现状态更新 API
+- [x] 实现发起提现 API
+- [x] 实现查询提现记录 API
+- [x] 实现提现批准 API（管理员用）
+- [x] 实现提现拒绝 API（管理员用）
 
 ### 阶段四：余额管理（1周）
 
@@ -2154,20 +2262,28 @@ type RiskControlService interface {
 **目标**：实现资金归集和调度功能
 
 #### 5.1 归集服务
-- [ ] 实现 CollectService
-- [ ] 实现归集策略（阈值、定时等）
-- [ ] 实现批量归集优化
-- [ ] 实现归集交易签名和发送
+- [x] 实现 CollectService
+- [x] 实现归集策略（阈值、定时等）
+- [x] 实现批量归集优化
+- [x] 实现归集交易签名和发送
+- [x] 实现 ERC20 归集时的 Gas 充值逻辑（ensureNativeGas）
+- [x] 实现归集顺序优化（先归集 ERC20，再归集 Native Token）
 
 #### 5.2 资金调度
-- [ ] 实现 RebalanceService
-- [ ] 实现热钱包间资金调度
-- [ ] 实现调度策略和阈值配置
+- [x] 实现 RebalanceService
+- [x] 实现热钱包间资金调度
+- [x] 实现调度策略和阈值配置
 
 #### 5.3 归集和调度 API
-- [ ] 实现手动触发归集 API
-- [ ] 实现查询归集记录 API
-- [ ] 实现资金调度 API
+- [x] 实现手动触发归集 API（管理员权限）
+- [x] 实现查询归集记录 API（管理员可查询所有记录）
+- [x] 实现资金调度 API
+
+#### 5.4 全局配置
+- [x] 实现全局配置管理（EnableAutoCollect, EnableSigning）
+- [x] 实现环境变量配置加载
+- [x] 实现自动归集开关
+- [x] 实现签名功能开关
 
 ### 阶段六：优化和测试（2周）
 
@@ -2291,37 +2407,46 @@ sequenceDiagram
     participant DB
 
     Client->>WithdrawHandler: POST /api/v1/wallet/withdraw
-    WithdrawHandler->>WithdrawService: CreateWithdrawRequest()
+    WithdrawHandler->>WithdrawService: RequestWithdraw()
     
-    WithdrawService->>BalanceService: 检查余额
+    WithdrawService->>BalanceService: 检查用户余额
     BalanceService-->>WithdrawService: 余额充足
     
-    WithdrawService->>RiskControlService: 风控检查
-    RiskControlService-->>WithdrawService: 批准/拒绝/人工审核
+    WithdrawService->>DB: 创建提现记录（status=user_withdraw_request）
+    WithdrawService->>BalanceService: 冻结资金（创建 frozen credits）
+    WithdrawService-->>WithdrawHandler: 返回提现请求
+    WithdrawHandler-->>Client: 返回 user_withdraw_request 状态
     
-    alt 需要人工审核
-        WithdrawService-->>WithdrawHandler: 返回需要审核
-        WithdrawHandler-->>Client: 返回审核中状态
-    else 自动批准
-        WithdrawService->>DB: 创建提现记录
-        WithdrawService->>HotWalletService: 选择热钱包
-        HotWalletService->>DB: 查询可用热钱包
-        HotWalletService-->>WithdrawService: 返回热钱包和nonce
-        
-        WithdrawService->>SignerService: 签名交易
-        SignerService->>SignerService: 派生私钥并签名
-        SignerService-->>WithdrawService: 返回签名交易
-        
-        WithdrawService->>RPCNode: 发送交易
-        RPCNode-->>WithdrawService: 返回交易哈希
-        
-        WithdrawService->>HotWalletService: 标记nonce已使用
-        WithdrawService->>DB: 更新提现状态（pending）
-        WithdrawService->>BalanceService: 创建Credits记录
-        
-        WithdrawService-->>WithdrawHandler: 返回提现结果
-        WithdrawHandler-->>Client: 返回交易哈希
-    end
+    Note over Client,Admin: 等待管理员审核
+    
+    Admin->>WithdrawHandler: POST /api/v1/wallet/withdraw/{id}/approve
+    WithdrawHandler->>WithdrawService: ApproveWithdraw()
+    
+    WithdrawService->>WithdrawService: ProcessWithdraw()
+    
+    WithdrawService->>HotWalletService: 选择热钱包
+    HotWalletService->>RPCNode: 查询热钱包余额
+    RPCNode-->>HotWalletService: 返回余额
+    HotWalletService-->>WithdrawService: 返回热钱包（余额充足）
+    
+    WithdrawService->>SignerService: 签名交易
+    SignerService->>SignerService: 派生私钥并签名
+    SignerService-->>WithdrawService: 返回签名交易
+    
+    WithdrawService->>RPCNode: 发送交易
+    RPCNode-->>WithdrawService: 返回交易哈希
+    
+    WithdrawService->>HotWalletService: 标记nonce已使用
+    WithdrawService->>DB: 更新提现状态（pending）
+    
+    WithdrawService-->>WithdrawHandler: 返回提现结果
+    WithdrawHandler-->>Admin: 返回交易哈希
+    
+    Note over ScanService: 区块扫描器自动更新状态
+    ScanService->>WithdrawService: UpdateWithdrawStatus()
+    WithdrawService->>RPCNode: 查询交易确认数
+    RPCNode-->>WithdrawService: 返回确认数
+    WithdrawService->>DB: 更新状态（pending → processing → confirmed）
 ```
 
 ### 19.3 归集流程时序图
@@ -2364,7 +2489,39 @@ sequenceDiagram
 
 ## 20. 技术实现细节
 
-### 20.1 区块扫描优化
+### 20.1 全局配置管理
+
+**配置结构**：
+```go
+type Wallet struct {
+    EnableAutoCollect bool  // 是否启用自动归集（默认 false）
+    EnableSigning     bool  // 是否启用签名功能（默认 false）
+}
+```
+
+**环境变量**：
+- `WALLET_ENABLE_AUTO_COLLECT`: 控制是否启动自动归集服务（默认 `false`）
+- `WALLET_ENABLE_SIGNING`: 控制是否允许交易签名（默认 `false`）
+
+**安全设计**：
+- 默认值均为 `false`，需要显式启用
+- 签名功能禁用时，`SignEVMTransaction` 会返回错误
+- 自动归集禁用时，不会启动定时归集任务
+
+### 20.2 角色管理
+
+**用户角色**：
+- `admin`: 管理员角色，可以创建热钱包、批准/拒绝提现、手动触发归集
+- `user`: 普通用户角色，只能创建普通钱包、发起提现请求
+
+**权限控制**：
+- 热钱包创建：仅 `admin` 用户可以调用 `POST /api/v1/wallet/hot-wallet`
+- 提现批准：仅 `admin` 用户可以调用 `POST /api/v1/wallet/withdraw/{id}/approve`
+- 提现拒绝：仅 `admin` 用户可以调用 `POST /api/v1/wallet/withdraw/{id}/reject`
+- 手动归集：仅 `admin` 用户可以调用 `POST /api/v1/wallet/collect`
+- 归集查询：`admin` 用户可以查询所有归集记录，`user` 只能查询自己的
+
+### 20.3 区块扫描优化
 
 **多链扫描策略**：
 - 每个链独立扫描，使用独立的 goroutine
@@ -2513,7 +2670,7 @@ RETURNING nonce
 ---
 
 **文档版本**: 2.1  
-**最后更新**: 2025-01-01  
+**最后更新**: 2025-11-25  
 **作者**: AI Assistant  
 **适用范围**: EVM 多链完整功能实现（以太坊主网、Polygon、BSC、Arbitrum、Optimism 等）
 
