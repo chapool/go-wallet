@@ -2455,37 +2455,101 @@ sequenceDiagram
 sequenceDiagram
     participant Timer
     participant CollectService
-    participant BalanceService
     participant HotWalletService
     participant SignerService
     participant RPCNode
     participant DB
 
-    loop 定时任务
+    loop 定时任务（如果启用）
         Timer->>CollectService: 触发自动归集
         
-        CollectService->>DB: 查询用户钱包余额
-        DB-->>CollectService: 返回余额列表
+        CollectService->>DB: 查询所有活跃链
+        DB-->>CollectService: 返回链列表
         
-        loop 遍历用户钱包
-            alt 余额达到阈值
-                CollectService->>HotWalletService: 选择目标热钱包
-                HotWalletService-->>CollectService: 返回热钱包地址
+        loop 遍历每个链
+            CollectService->>DB: 查询该链的所有用户钱包
+            DB-->>CollectService: 返回钱包列表
+            
+            CollectService->>HotWalletService: 获取热钱包(chainID)
+            HotWalletService-->>CollectService: 返回热钱包地址
+            
+            loop 遍历用户钱包
+                Note over CollectService: 归集顺序：先 ERC20，后 Native
                 
-                CollectService->>SignerService: 签名归集交易
-                SignerService->>SignerService: 派生用户钱包私钥
-                SignerService->>SignerService: 签名交易
-                SignerService-->>CollectService: 返回签名交易
+                rect rgb(240, 248, 255)
+                    Note over CollectService: 1. ERC20 归集
+                    CollectService->>DB: 查询该链的 ERC20 Token 列表
+                    DB-->>CollectService: 返回 Token 列表
+                    
+                    loop 遍历每个 ERC20 Token
+                        CollectService->>RPCNode: 查询用户钱包 Token 余额
+                        RPCNode-->>CollectService: 返回余额
+                        
+                        alt 余额达到阈值
+                            CollectService->>RPCNode: 查询用户钱包 Native 余额
+                            RPCNode-->>CollectService: 返回 Native 余额
+                            
+                            alt Native Gas 不足
+                                CollectService->>HotWalletService: 从热钱包充值 Native Gas
+                                HotWalletService->>SignerService: 签名充值交易
+                                SignerService-->>HotWalletService: 返回签名交易
+                                HotWalletService->>RPCNode: 发送充值交易
+                                RPCNode-->>HotWalletService: 返回交易哈希
+                                HotWalletService-->>CollectService: 充值完成
+                            end
+                            
+                            CollectService->>SignerService: 签名 ERC20 归集交易
+                            SignerService->>SignerService: 派生用户钱包私钥
+                            SignerService->>SignerService: 签名交易
+                            SignerService-->>CollectService: 返回签名交易
+                            
+                            CollectService->>RPCNode: 发送交易
+                            RPCNode-->>CollectService: 返回交易哈希
+                            
+                            CollectService->>RPCNode: 等待交易回执
+                            RPCNode-->>CollectService: 返回交易回执
+                            
+                            CollectService->>DB: 创建 transactions 记录<br/>(type='collect', 不创建 credits)
+                        end
+                    end
+                end
                 
-                CollectService->>RPCNode: 发送交易
-                RPCNode-->>CollectService: 返回交易哈希
-                
-                CollectService->>BalanceService: 创建Credits记录
-                Note over BalanceService: 用户钱包：-amount<br/>热钱包：+amount
+                rect rgb(255, 248, 240)
+                    Note over CollectService: 2. Native Token 归集
+                    CollectService->>RPCNode: 查询用户钱包 Native 余额
+                    RPCNode-->>CollectService: 返回余额
+                    
+                    alt 余额达到阈值
+                        CollectService->>RPCNode: 计算 Gas 费用
+                        RPCNode-->>CollectService: 返回 Gas 费用
+                        
+                        alt 余额 > Gas 费用 + 最小归集金额
+                            CollectService->>SignerService: 签名 Native 归集交易<br/>(amount = balance - gas)
+                            SignerService->>SignerService: 派生用户钱包私钥
+                            SignerService->>SignerService: 签名交易
+                            SignerService-->>CollectService: 返回签名交易
+                            
+                            CollectService->>RPCNode: 发送交易
+                            RPCNode-->>CollectService: 返回交易哈希
+                            
+                            CollectService->>RPCNode: 等待交易回执
+                            RPCNode-->>CollectService: 返回交易回执
+                            
+                            CollectService->>DB: 创建 transactions 记录<br/>(type='collect', 不创建 credits)
+                        end
+                    end
+                end
             end
         end
     end
 ```
+
+**重要说明**：
+- 归集操作**不会**创建 `credits` 记录，只创建 `transactions` 记录（type='collect'）
+- 归集**不会**影响用户余额，这是内部资金管理操作
+- 归集顺序：先归集 ERC20 Token，再归集 Native Token（提高 Gas 效率）
+- ERC20 归集时，如果用户钱包的 Native Token 余额不足以支付 Gas，系统会从热钱包向用户钱包充值少量 Native Token
+- 自动归集可以通过 `WALLET_ENABLE_AUTO_COLLECT` 环境变量控制（默认 `false`）
 
 ## 20. 技术实现细节
 
