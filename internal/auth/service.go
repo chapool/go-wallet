@@ -423,6 +423,7 @@ func (s *Service) Register(ctx context.Context, request dto.RegisterRequest) (dt
 			IsActive:             !result.RequiresConfirmation,
 			RequiresConfirmation: result.RequiresConfirmation,
 			Scopes:               s.config.Auth.DefaultUserScopes,
+			Role:                 "user", // Default role for new users
 		}
 
 		if err := user.Insert(ctx, exec, boil.Infer()); err != nil {

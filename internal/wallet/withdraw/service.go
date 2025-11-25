@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"math/big"
+	"strings"
 
 	"github/chapool/go-wallet/internal/models"
 	"github/chapool/go-wallet/internal/wallet/balance"
@@ -29,6 +30,15 @@ type Service interface {
 
 	// ProcessWithdraw 处理提现（签名并广播）
 	ProcessWithdraw(ctx context.Context, withdrawID string) error
+
+	// ApproveWithdraw 管理员批准提现请求
+	ApproveWithdraw(ctx context.Context, withdrawID string) (*models.Withdraw, error)
+
+	// RejectWithdraw 管理员拒绝提现请求
+	RejectWithdraw(ctx context.Context, withdrawID string, reason string) (*models.Withdraw, error)
+
+	// UpdateWithdrawStatus 根据交易确认数更新提现状态
+	UpdateWithdrawStatus(ctx context.Context, chainID int, latestBlockNumber int64) error
 }
 
 type service struct {
@@ -40,12 +50,13 @@ type service struct {
 }
 
 const (
-	defaultERC20GasLimit = 100000
-	defaultETHGasLimit   = 21000
-	defaultDecimalsBase  = 10
-	defaultFloatPrec     = 256
-	eip1559FeeMultiplier = 2
-	paddedAddressLength  = 32
+	defaultERC20GasLimit      = 100000
+	defaultETHGasLimit        = 21000
+	defaultDecimalsBase       = 10
+	defaultFloatPrec          = 256
+	eip1559FeeMultiplier      = 2
+	paddedAddressLength       = 32
+	defaultConfirmationBlocks = 12 // 默认确认区块数
 )
 
 // NewService 创建提现服务
@@ -109,7 +120,7 @@ func (s *service) RequestWithdraw(ctx context.Context, userID string, req *Reque
 		Fee:       "0",                      // 暂时未计算手续费，后续 update
 		ChainID:   token.ChainID,
 		ChainType: token.ChainType,
-		Status:    "pending", // 初始状态
+		Status:    models.WithdrawStatusUserWithdrawRequest, // 初始状态：等待管理员审核
 	}
 
 	if err := withdraw.Insert(ctx, tx, boil.Infer()); err != nil {
@@ -179,9 +190,9 @@ func (s *service) ProcessWithdraw(ctx context.Context, withdrawID string) error 
 		return errors.Wrap(err, "failed to get withdraw record")
 	}
 
-	if withdraw.Status != "pending" {
-		// 只有 pending 状态的提现可以处理
-		return nil
+	if withdraw.Status != models.WithdrawStatusUserWithdrawRequest {
+		// 只有 user_withdraw_request 状态的提现可以处理（等待审核的提现）
+		return errors.Errorf("withdraw status is %s, expected %s", withdraw.Status, models.WithdrawStatusUserWithdrawRequest)
 	}
 
 	// 2. 获取热钱包
@@ -190,68 +201,59 @@ func (s *service) ProcessWithdraw(ctx context.Context, withdrawID string) error 
 		return errors.Wrap(err, "failed to get hot wallet")
 	}
 
-	// 3. 获取 Nonce (原子递增)
-	nonce, err := s.hotWalletService.GetNextNonce(ctx, hotWallet.Address, withdraw.ChainID)
-	if err != nil {
-		return errors.Wrap(err, "failed to get nonce")
-	}
-
-	// 4. 构建交易签名请求
+	// 3. 获取 RPC 客户端
 	client, err := s.scanService.GetClient(ctx, withdraw.ChainID)
 	if err != nil {
 		return errors.Wrap(err, "failed to get RPC client")
 	}
 
-	// 获取最新的 BaseFee (从最新区块)
-	// 为了简单，我们这里不调用 GetLatestBlockNumber 再 GetBlockByNumber，而是假设 RPC 节点支持 EIP-1559 且我们能估算 Gas
-	// 实际上，我们可以简单地使用 client.SuggestGasTipCap() 和 client.HeaderByNumber(nil).BaseFee
-	// 这里简化：使用硬编码或简单的估算逻辑
-	// 注意：生产环境需要更精确的 Gas 估算
+	// 4. 获取代币信息
+	token, err := models.Tokens(models.TokenWhere.ID.EQ(withdraw.TokenID)).One(ctx, tx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get token info")
+	}
 
-	// 获取 Tip Cap
+	// 5. 转换 Amount 到 Wei (BigInt)
+	amountFloat, _, err := big.ParseFloat(withdraw.Amount, defaultDecimalsBase, defaultFloatPrec, big.ToNearestEven)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse amount")
+	}
+	decimalsFloat := new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(defaultDecimalsBase), big.NewInt(int64(token.Decimals)), nil))
+	amountWeiFloat := new(big.Float).Mul(amountFloat, decimalsFloat)
+	amountWei := new(big.Int)
+	amountWeiFloat.Int(amountWei) // 转换为 Int
+
+	// 6. 获取 gas 价格（用于余额检查和交易构建）
 	tipCap, err := client.SuggestGasTipCap(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to suggest gas tip cap")
 	}
-
-	// 获取 Latest Block for Base Fee (通过 GetBlockByNumber(nil))
 	latestBlock, err := client.GetBlockByNumber(ctx, nil)
 	if err != nil {
 		return errors.Wrap(err, "failed to get latest block")
 	}
 	baseFee := latestBlock.BaseFee()
 	if baseFee == nil {
-		// 非 EIP-1559 链处理 (暂时不支持，因为 SignerService 只支持 EIP-1559)
-		// 如果链不支持 EIP-1559，这里会报错。假设所有链都支持（如 Polygon, ETH, BSC modern）
-		// BSC 可能不支持 EIP-1559，需要检查。如果是 legacy tx，SignerService 需要扩展。
-		// 暂时假设都支持 EIP-1559。
-		// 如果 baseFee 为 nil，设置一个默认值或者报错
-		// baseFee = big.NewInt(0) // 危险
 		return errors.New("chain does not support EIP-1559 (baseFee is nil)")
 	}
-
-	// MaxFee = BaseFee * 2 + TipCap (简单策略)
 	maxFee := new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(eip1559FeeMultiplier)), tipCap)
 
-	// 转换 Amount 到 Wei (BigInt)
-	amountFloat, _, err := big.ParseFloat(withdraw.Amount, defaultDecimalsBase, defaultFloatPrec, big.ToNearestEven)
-	if err != nil {
-		return errors.Wrap(err, "failed to parse amount")
-	}
-	// 假设 Tokens 表有 decimals，这里为了简化，假设 amount 已经是 Wei 或者需要转换
-	// 通常 withdraw.Amount 应该是人类可读的 (如 1.5 ETH)，需要乘以 10^decimals
-	// 但是 RequestWithdraw 中我们直接存了 req.Amount。我们需要知道 req.Amount 的单位。
-	// 假设 req.Amount 是人类可读单位。
-	token, err := models.Tokens(models.TokenWhere.ID.EQ(withdraw.TokenID)).One(ctx, tx)
-	if err != nil {
-		return errors.Wrap(err, "failed to get token info")
+	// 7. 检查热钱包余额
+	hotWalletAddr := common.HexToAddress(hotWallet.Address)
+	if err := s.checkHotWalletBalance(ctx, client, token, hotWalletAddr, amountWei, maxFee); err != nil {
+		return err
 	}
 
-	amountWei := new(big.Int)
-	// Amount * 10^decimals
-	decimalsFloat := new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(defaultDecimalsBase), big.NewInt(int64(token.Decimals)), nil))
-	amountWeiFloat := new(big.Float).Mul(amountFloat, decimalsFloat)
-	amountWeiFloat.Int(amountWei) // 转换为 Int
+	// 8. 获取 Nonce (原子递增)
+	nonce, err := s.hotWalletService.GetNextNonce(ctx, hotWallet.Address, withdraw.ChainID)
+	if err != nil {
+		return errors.Wrap(err, "failed to get nonce")
+	}
+
+	// 9. 构建交易签名请求
+	// tipCap, baseFee, maxFee 已经在余额检查时计算过了，直接使用
+
+	// amountWei 已经在余额检查时计算过了，这里直接使用
 
 	// 构建 SignRequest
 	signReq := &signer.SignEVMRequest{
@@ -316,8 +318,9 @@ func (s *service) ProcessWithdraw(ctx context.Context, withdrawID string) error 
 		return errors.Wrap(err, "failed to broadcast transaction")
 	}
 
-	// 7. 更新状态
-	withdraw.Status = "processing"
+	// 7. 更新状态为 pending（交易已发送，等待确认）
+	// 后续由区块扫描器根据确认数更新为 processing → confirmed
+	withdraw.Status = models.WithdrawStatusPending
 	withdraw.TXHash = null.StringFrom(signResp.TxHash)
 	withdraw.FromAddress = null.StringFrom(hotWallet.Address)
 	withdraw.Nonce = null.IntFrom(nonce)
@@ -337,4 +340,513 @@ func (s *service) ProcessWithdraw(ctx context.Context, withdrawID string) error 
 		Msg("Withdraw processed and broadcasted")
 
 	return nil
+}
+
+// ApproveWithdraw 管理员批准提现请求
+func (s *service) ApproveWithdraw(ctx context.Context, withdrawID string) (*models.Withdraw, error) {
+	// 1. 获取并锁定提现记录
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to begin transaction")
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	withdraw, err := models.Withdraws(
+		models.WithdrawWhere.ID.EQ(withdrawID),
+		qm.For("UPDATE"),
+	).One(ctx, tx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("withdraw not found")
+		}
+		return nil, errors.Wrap(err, "failed to get withdraw record")
+	}
+
+	// 2. 检查状态
+	if withdraw.Status != models.WithdrawStatusUserWithdrawRequest {
+		return nil, errors.Errorf("withdraw status is %s, expected %s", withdraw.Status, models.WithdrawStatusUserWithdrawRequest)
+	}
+
+	// 3. 提交事务（状态检查完成）
+	if err := tx.Commit(); err != nil {
+		return nil, errors.Wrap(err, "failed to commit transaction")
+	}
+
+	// 4. 处理提现（签名并广播）
+	if err := s.ProcessWithdraw(ctx, withdrawID); err != nil {
+		// 如果处理失败，更新状态为 failed 并记录错误信息
+		s.updateWithdrawStatusOnError(ctx, withdrawID, err)
+		return nil, errors.Wrap(err, "failed to process withdraw after approval")
+	}
+
+	// 5. 重新获取提现记录（获取更新后的状态）
+	withdraw, err = models.Withdraws(models.WithdrawWhere.ID.EQ(withdrawID)).One(ctx, s.db)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get updated withdraw record")
+	}
+
+	return withdraw, nil
+}
+
+// RejectWithdraw 管理员拒绝提现请求
+func (s *service) RejectWithdraw(ctx context.Context, withdrawID string, reason string) (*models.Withdraw, error) {
+	// 1. 获取并锁定提现记录
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to begin transaction")
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	withdraw, err := models.Withdraws(
+		models.WithdrawWhere.ID.EQ(withdrawID),
+		qm.For("UPDATE"),
+	).One(ctx, tx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("withdraw not found")
+		}
+		return nil, errors.Wrap(err, "failed to get withdraw record")
+	}
+
+	// 2. 检查是否有 frozen 的 credits（允许拒绝任何有 frozen credits 的提现，无论状态）
+	credits, err := models.Credits(
+		models.CreditWhere.ReferenceID.EQ(withdrawID),
+		models.CreditWhere.ReferenceType.EQ("withdraw"),
+		models.CreditWhere.Status.EQ("frozen"),
+	).All(ctx, tx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get frozen credits")
+	}
+
+	if len(credits) == 0 {
+		// 没有 frozen credits，说明已经处理过了，不允许拒绝
+		return nil, errors.Errorf("withdraw has no frozen credits to reject (status: %s)", withdraw.Status)
+	}
+
+	// 3. 检查状态（只允许拒绝 user_withdraw_request 或 failed 状态的提现）
+	allowedStatuses := []string{
+		models.WithdrawStatusUserWithdrawRequest,
+		models.WithdrawStatusFailed,
+	}
+	statusAllowed := false
+	for _, allowedStatus := range allowedStatuses {
+		if withdraw.Status == allowedStatus {
+			statusAllowed = true
+			break
+		}
+	}
+
+	if !statusAllowed {
+		return nil, errors.Errorf("withdraw status is %s, can only reject %s or %s status", withdraw.Status, models.WithdrawStatusUserWithdrawRequest, models.WithdrawStatusFailed)
+	}
+
+	// 4. 记录之前的状态（用于日志）
+	previousStatus := withdraw.Status
+
+	// 5. 更新状态为失败
+	withdraw.Status = models.WithdrawStatusFailed
+	// 如果提供了拒绝原因，使用提供的原因；否则使用默认的拒绝原因
+	if reason != "" {
+		withdraw.ErrorMessage = null.StringFrom(reason)
+	} else {
+		// 如果没有提供原因，使用默认的拒绝原因（覆盖之前的错误信息）
+		withdraw.ErrorMessage = null.StringFrom("Rejected by admin")
+	}
+
+	if _, err := withdraw.Update(ctx, tx, boil.Infer()); err != nil {
+		return nil, errors.Wrap(err, "failed to update withdraw status")
+	}
+
+	// 6. 解冻 credits（将 frozen 状态的 credits 更新为 failed）
+	for _, credit := range credits {
+		credit.Status = "failed"
+		if _, err := credit.Update(ctx, tx, boil.Infer()); err != nil {
+			return nil, errors.Wrap(err, "failed to update credit status")
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, errors.Wrap(err, "failed to commit transaction")
+	}
+
+	log.Info().
+		Str("withdraw_id", withdrawID).
+		Str("reason", reason).
+		Str("previous_status", previousStatus).
+		Msg("Withdraw rejected by admin")
+
+	return withdraw, nil
+}
+
+// UpdateWithdrawStatus 根据交易确认数更新提现状态
+// 状态流转：pending → processing → confirmed
+func (s *service) UpdateWithdrawStatus(ctx context.Context, chainID int, latestBlockNumber int64) error {
+	// 获取链配置
+	chain, err := models.Chains(
+		models.ChainWhere.ChainID.EQ(chainID),
+	).One(ctx, s.db)
+
+	if err != nil {
+		return errors.Wrapf(err, "failed to get chain config for chain_id=%d", chainID)
+	}
+
+	// 获取确认区块数（用于判断 confirmed 状态）
+	confirmationBlocks := int64(defaultConfirmationBlocks)
+	if chain.ConfirmationBlocks.Valid {
+		confirmationBlocks = int64(chain.ConfirmationBlocks.Int)
+	}
+
+	// 查询所有待更新的提现记录（pending 或 processing 状态，且有 tx_hash）
+	withdraws, err := models.Withdraws(
+		models.WithdrawWhere.ChainID.EQ(chainID),
+		models.WithdrawWhere.Status.IN([]string{
+			models.WithdrawStatusPending,
+			models.WithdrawStatusProcessing,
+		}),
+		models.WithdrawWhere.TXHash.IsNotNull(),
+	).All(ctx, s.db)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to query withdraws")
+	}
+
+	if len(withdraws) == 0 {
+		return nil
+	}
+
+	log.Info().
+		Int("chain_id", chainID).
+		Int64("latest_block", latestBlockNumber).
+		Int64("confirmation_blocks", confirmationBlocks).
+		Int("pending_withdraw_count", len(withdraws)).
+		Msg("Updating withdraw confirmation status")
+
+	updatedCount := 0
+	for _, withdraw := range withdraws {
+		if !withdraw.TXHash.Valid {
+			continue
+		}
+
+		txHash := withdraw.TXHash.String
+
+		// 通过 tx_hash 查询 transactions 表获取确认数
+		tx, err := s.getOrCreateTransactionRecord(ctx, chainID, txHash, withdraw, latestBlockNumber)
+		if err != nil {
+			log.Debug().
+				Str("withdraw_id", withdraw.ID).
+				Str("tx_hash", txHash).
+				Err(err).
+				Msg("Failed to get or create transaction record, skipping")
+			continue
+		}
+
+		// 计算确认数
+		confirmationCount := latestBlockNumber - tx.BlockNo
+
+		// 确保确认数不为负数（防止区块重组等情况）
+		if confirmationCount < 0 {
+			log.Warn().
+				Str("withdraw_id", withdraw.ID).
+				Str("tx_hash", txHash).
+				Int64("block_no", tx.BlockNo).
+				Int64("latest_block", latestBlockNumber).
+				Int64("confirmation_count", confirmationCount).
+				Msg("Negative confirmation count detected, skipping status update")
+			continue
+		}
+
+		// 根据确认数确定新状态
+		var newStatus string
+		switch {
+		case confirmationCount >= confirmationBlocks:
+			// 达到确认数，状态为 confirmed
+			newStatus = models.WithdrawStatusConfirmed
+		case confirmationCount > 0:
+			// 有确认但未达到最终确认数，状态为 processing
+			newStatus = models.WithdrawStatusProcessing
+		default:
+			// 确认数为 0，保持 pending
+			newStatus = models.WithdrawStatusPending
+		}
+
+		// 如果状态需要更新
+		if withdraw.Status != newStatus {
+			oldStatus := withdraw.Status
+			withdraw.Status = newStatus
+
+			if _, err := withdraw.Update(ctx, s.db, boil.Whitelist(
+				models.WithdrawColumns.Status,
+				models.WithdrawColumns.UpdatedAt,
+			)); err != nil {
+				log.Error().
+					Str("withdraw_id", withdraw.ID).
+					Str("tx_hash", txHash).
+					Err(err).
+					Msg("Failed to update withdraw status")
+				continue
+			}
+
+			updatedCount++
+
+			log.Info().
+				Int("chain_id", chainID).
+				Str("withdraw_id", withdraw.ID).
+				Str("tx_hash", txHash).
+				Str("old_status", oldStatus).
+				Str("new_status", newStatus).
+				Int64("confirmation_count", confirmationCount).
+				Int64("block_no", tx.BlockNo).
+				Int64("latest_block", latestBlockNumber).
+				Msg("Withdraw status updated")
+		}
+	}
+
+	if updatedCount > 0 {
+		log.Info().
+			Int("chain_id", chainID).
+			Int("updated_count", updatedCount).
+			Msg("Withdraw statuses updated")
+	}
+
+	return nil
+}
+
+// getOrCreateTransactionRecord 获取或创建交易记录
+// 如果 transactions 表中没有记录，尝试通过 RPC 查询并创建
+func (s *service) getOrCreateTransactionRecord(ctx context.Context, chainID int, txHash string, withdraw *models.Withdraw, latestBlockNumber int64) (*models.Transaction, error) {
+	// 先尝试从数据库查询
+	tx, err := models.Transactions(
+		models.TransactionWhere.TXHash.EQ(txHash),
+	).One(ctx, s.db)
+
+	if err == nil {
+		return tx, nil
+	}
+
+	// 如果查询失败且不是 ErrNoRows，返回错误
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, errors.Wrap(err, "failed to query transaction")
+	}
+
+	// 交易还未被扫描到，尝试通过 RPC 查询交易状态
+	// 如果交易已确认，创建 transactions 记录
+	if err := s.createTransactionRecordIfConfirmed(ctx, chainID, txHash, withdraw, latestBlockNumber); err != nil {
+		return nil, errors.Wrap(err, "failed to create transaction record via RPC")
+	}
+
+	// 重新查询 transactions 记录
+	tx, err = models.Transactions(
+		models.TransactionWhere.TXHash.EQ(txHash),
+	).One(ctx, s.db)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query transaction after creating record")
+	}
+
+	return tx, nil
+}
+
+// createTransactionRecordIfConfirmed 如果交易已确认，创建 transactions 记录
+func (s *service) createTransactionRecordIfConfirmed(ctx context.Context, chainID int, txHash string, withdraw *models.Withdraw, latestBlockNumber int64) error {
+	// 获取 RPC 客户端
+	client, err := s.scanService.GetClient(ctx, chainID)
+	if err != nil {
+		return errors.Wrap(err, "failed to get RPC client")
+	}
+
+	// 查询交易回执
+	txHashHash := common.HexToHash(txHash)
+	receipt, err := client.GetTransactionReceipt(ctx, txHashHash)
+	if err != nil {
+		// 交易可能还在 pending 状态，返回错误但不记录为错误
+		return errors.Wrap(err, "transaction receipt not found (may still be pending)")
+	}
+
+	// 检查交易是否成功
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		// 交易失败，创建失败的 transactions 记录
+		transaction := &models.Transaction{
+			ChainID:           chainID,
+			BlockHash:         receipt.BlockHash.Hex(),
+			BlockNo:           receipt.BlockNumber.Int64(),
+			TXHash:            strings.ToLower(txHash),
+			FromAddr:          strings.ToLower(withdraw.FromAddress.String),
+			ToAddr:            strings.ToLower(withdraw.ToAddress),
+			TokenAddr:         null.String{}, // 需要根据 token 判断
+			Amount:            withdraw.Amount,
+			Type:              models.TransactionTypeWithdraw,
+			Status:            models.TransactionStatusFailed,
+			ConfirmationCount: null.IntFrom(int(latestBlockNumber - receipt.BlockNumber.Int64())),
+		}
+
+		// 获取 token 信息以确定 token_addr
+		token, err := models.Tokens(models.TokenWhere.ID.EQ(withdraw.TokenID)).One(ctx, s.db)
+		if err == nil && !token.IsNative && token.TokenAddress.Valid {
+			transaction.TokenAddr = null.StringFrom(strings.ToLower(token.TokenAddress.String))
+		}
+
+		if err := transaction.Insert(ctx, s.db, boil.Infer()); err != nil {
+			return errors.Wrap(err, "failed to create failed transaction record")
+		}
+
+		log.Info().
+			Str("withdraw_id", withdraw.ID).
+			Str("tx_hash", txHash).
+			Int64("block_no", receipt.BlockNumber.Int64()).
+			Msg("Created failed transaction record for withdraw")
+		return nil
+	}
+
+	// 交易成功，创建 transactions 记录
+	transaction := &models.Transaction{
+		ChainID:           chainID,
+		BlockHash:         receipt.BlockHash.Hex(),
+		BlockNo:           receipt.BlockNumber.Int64(),
+		TXHash:            strings.ToLower(txHash),
+		FromAddr:          strings.ToLower(withdraw.FromAddress.String),
+		ToAddr:            strings.ToLower(withdraw.ToAddress),
+		TokenAddr:         null.String{}, // 需要根据 token 判断
+		Amount:            withdraw.Amount,
+		Type:              models.TransactionTypeWithdraw,
+		Status:            models.TransactionStatusConfirmed,
+		ConfirmationCount: null.IntFrom(int(latestBlockNumber - receipt.BlockNumber.Int64())),
+	}
+
+	// 获取 token 信息以确定 token_addr
+	token, err := models.Tokens(models.TokenWhere.ID.EQ(withdraw.TokenID)).One(ctx, s.db)
+	if err == nil && !token.IsNative && token.TokenAddress.Valid {
+		transaction.TokenAddr = null.StringFrom(strings.ToLower(token.TokenAddress.String))
+	}
+
+	if err := transaction.Insert(ctx, s.db, boil.Infer()); err != nil {
+		return errors.Wrap(err, "failed to create transaction record")
+	}
+
+	log.Info().
+		Str("withdraw_id", withdraw.ID).
+		Str("tx_hash", txHash).
+		Int64("block_no", receipt.BlockNumber.Int64()).
+		Int64("confirmation_count", latestBlockNumber-receipt.BlockNumber.Int64()).
+		Msg("Created transaction record for withdraw")
+
+	return nil
+}
+
+// checkHotWalletBalance 检查热钱包余额是否充足
+func (s *service) checkHotWalletBalance(
+	ctx context.Context,
+	client *scan.RPCClient,
+	token *models.Token,
+	hotWalletAddr common.Address,
+	amountWei *big.Int,
+	maxFee *big.Int,
+) error {
+	if token.IsNative {
+		return s.checkNativeTokenBalance(ctx, client, hotWalletAddr, amountWei, maxFee)
+	}
+	return s.checkERC20TokenBalance(ctx, client, token, hotWalletAddr, amountWei, maxFee)
+}
+
+// checkNativeTokenBalance 检查 native token 余额
+func (s *service) checkNativeTokenBalance(
+	ctx context.Context,
+	client *scan.RPCClient,
+	hotWalletAddr common.Address,
+	amountWei *big.Int,
+	maxFee *big.Int,
+) error {
+	balance, err := client.BalanceAt(ctx, hotWalletAddr)
+	if err != nil {
+		return errors.Wrap(err, "failed to get hot wallet native token balance")
+	}
+
+	// 估算 gas 费用
+	gasLimit := big.NewInt(defaultETHGasLimit)
+	estimatedGasCost := new(big.Int).Mul(gasLimit, maxFee)
+
+	requiredBalance := new(big.Int).Add(amountWei, estimatedGasCost)
+	if balance.Cmp(requiredBalance) < 0 {
+		return errors.Errorf("insufficient balance in hot wallet: have %s, need %s (amount: %s + gas: %s)",
+			balance.String(), requiredBalance.String(), amountWei.String(), estimatedGasCost.String())
+	}
+
+	return nil
+}
+
+// checkERC20TokenBalance 检查 ERC20 token 余额和 native token 余额（用于 gas）
+func (s *service) checkERC20TokenBalance(
+	ctx context.Context,
+	client *scan.RPCClient,
+	token *models.Token,
+	hotWalletAddr common.Address,
+	amountWei *big.Int,
+	maxFee *big.Int,
+) error {
+	if !token.TokenAddress.Valid {
+		return errors.New("token address is invalid for non-native token")
+	}
+
+	// 检查 ERC20 token 余额
+	tokenAddr := common.HexToAddress(token.TokenAddress.String)
+	tokenBalance, err := client.TokenBalance(ctx, tokenAddr, hotWalletAddr)
+	if err != nil {
+		return errors.Wrap(err, "failed to get hot wallet ERC20 token balance")
+	}
+
+	if tokenBalance.Cmp(amountWei) < 0 {
+		return errors.Errorf("insufficient ERC20 token balance in hot wallet: have %s, need %s",
+			tokenBalance.String(), amountWei.String())
+	}
+
+	// 检查 native token 余额（用于 gas）
+	balance, err := client.BalanceAt(ctx, hotWalletAddr)
+	if err != nil {
+		return errors.Wrap(err, "failed to get hot wallet native token balance for gas")
+	}
+
+	// 估算 gas 费用
+	gasLimit := big.NewInt(defaultERC20GasLimit)
+	estimatedGasCost := new(big.Int).Mul(gasLimit, maxFee)
+
+	if balance.Cmp(estimatedGasCost) < 0 {
+		return errors.Errorf("insufficient native token balance in hot wallet for gas: have %s, need %s",
+			balance.String(), estimatedGasCost.String())
+	}
+
+	return nil
+}
+
+// updateWithdrawStatusOnError 当提现处理失败时更新状态为 failed
+func (s *service) updateWithdrawStatusOnError(ctx context.Context, withdrawID string, processErr error) {
+	updateTx, updateErr := s.db.BeginTx(ctx, nil)
+	if updateErr != nil {
+		log.Error().Err(updateErr).Str("withdraw_id", withdrawID).Msg("Failed to begin transaction for error status update")
+		return
+	}
+	defer func() { _ = updateTx.Rollback() }()
+
+	withdrawRecord, getErr := models.Withdraws(
+		models.WithdrawWhere.ID.EQ(withdrawID),
+		qm.For("UPDATE"),
+	).One(ctx, updateTx)
+	if getErr != nil {
+		log.Error().Err(getErr).Str("withdraw_id", withdrawID).Msg("Failed to get withdraw record for error status update")
+		return
+	}
+
+	withdrawRecord.Status = models.WithdrawStatusFailed
+	withdrawRecord.ErrorMessage = null.StringFrom(processErr.Error())
+	if _, updateErr := withdrawRecord.Update(ctx, updateTx, boil.Infer()); updateErr != nil {
+		log.Error().Err(updateErr).Str("withdraw_id", withdrawID).Msg("Failed to update withdraw status to failed")
+		return
+	}
+
+	if commitErr := updateTx.Commit(); commitErr != nil {
+		log.Error().Err(commitErr).Str("withdraw_id", withdrawID).Msg("Failed to commit transaction for error status update")
+		return
+	}
+
+	log.Info().
+		Str("withdraw_id", withdrawID).
+		Str("error", processErr.Error()).
+		Msg("Updated withdraw status to failed after processing error")
 }

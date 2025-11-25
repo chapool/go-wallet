@@ -19,15 +19,14 @@ import (
 // swagger:model postCollectPayload
 type PostCollectPayload struct {
 
-	// Chain ID (optional, will use wallet's chain_id if not provided)
+	// Chain ID (required if wallet_id is not provided, will use wallet's chain_id if wallet_id is provided)
 	// Example: 1
 	ChainID int64 `json:"chain_id,omitempty"`
 
-	// Wallet ID to collect from
+	// Wallet ID to collect from (optional, if not provided, chain_id must be provided)
 	// Example: 550e8400-e29b-41d4-a716-446655440000
-	// Required: true
 	// Format: uuid
-	WalletID *strfmt.UUID `json:"wallet_id"`
+	WalletID strfmt.UUID `json:"wallet_id,omitempty"`
 }
 
 // Validate validates this post collect payload
@@ -45,9 +44,8 @@ func (m *PostCollectPayload) Validate(formats strfmt.Registry) error {
 }
 
 func (m *PostCollectPayload) validateWalletID(formats strfmt.Registry) error {
-
-	if err := validate.Required("wallet_id", "body", m.WalletID); err != nil {
-		return err
+	if swag.IsZero(m.WalletID) { // not required
+		return nil
 	}
 
 	if err := validate.FormatOf("wallet_id", "body", "uuid", m.WalletID.String(), formats); err != nil {

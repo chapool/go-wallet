@@ -18,6 +18,7 @@ type User struct {
 	PasswordHash        null.String
 	IsActive            bool
 	Scopes              []string
+	Role                string
 	LastAuthenticatedAt null.Time
 	UpdatedAt           time.Time
 	Profile             *AppUserProfile
@@ -51,6 +52,7 @@ func (u User) ToModels() *models.User {
 		Password:            u.PasswordHash,
 		IsActive:            u.IsActive,
 		Scopes:              u.Scopes,
+		Role:                u.Role,
 		LastAuthenticatedAt: u.LastAuthenticatedAt,
 	}
 }

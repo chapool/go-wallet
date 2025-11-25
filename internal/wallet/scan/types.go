@@ -5,6 +5,12 @@ import (
 	"math/big"
 )
 
+// WithdrawStatusUpdater 提现状态更新器接口（避免循环依赖）
+type WithdrawStatusUpdater interface {
+	// UpdateWithdrawStatus 根据交易确认数更新提现状态
+	UpdateWithdrawStatus(ctx context.Context, chainID int, latestBlockNumber int64) error
+}
+
 // Service 定义区块链扫描服务接口
 type Service interface {
 	// StartMultiChainScan 启动多链并发扫描

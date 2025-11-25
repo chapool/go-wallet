@@ -55,9 +55,11 @@ func (o *SwaggerSpec) initHandlerCache() {
 	o.Handlers["GET"]["/api/v1/wallet/address"] = true
 	o.Handlers["GET"]["/api/v1/wallet/list"] = true
 	o.Handlers["GET"]["/api/v1/wallet/withdraws"] = true
+	o.Handlers["POST"]["/api/v1/wallet/withdraw/{withdrawId}/approve"] = true
 	o.Handlers["POST"]["/api/v1/auth/change-password"] = true
 	o.Handlers["POST"]["/api/v1/wallet/collect"] = true
 	o.Handlers["POST"]["/api/v1/auth/register/{registrationToken}"] = true
+	o.Handlers["POST"]["/api/v1/wallet/hot-wallet"] = true
 	o.Handlers["POST"]["/api/v1/wallet/create"] = true
 	o.Handlers["POST"]["/api/v1/auth/forgot-password/complete"] = true
 	o.Handlers["POST"]["/api/v1/auth/forgot-password"] = true
@@ -66,6 +68,7 @@ func (o *SwaggerSpec) initHandlerCache() {
 	o.Handlers["POST"]["/api/v1/wallet/rebalance"] = true
 	o.Handlers["POST"]["/api/v1/auth/refresh"] = true
 	o.Handlers["POST"]["/api/v1/auth/register"] = true
+	o.Handlers["POST"]["/api/v1/wallet/withdraw/{withdrawId}/reject"] = true
 	o.Handlers["POST"]["/api/v1/wallet/sign-transaction"] = true
 	o.Handlers["POST"]["/api/v1/wallet/withdraw"] = true
 	o.Handlers["PUT"]["/api/v1/push/token"] = true

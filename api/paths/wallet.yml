@@ -433,6 +433,107 @@ paths:
           schema:
             $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
 
+  /api/v1/wallet/withdraw/{withdrawId}/approve:
+    post:
+      summary: Approve withdraw request (Admin only)
+      operationId: PostApproveWithdrawRoute
+      description: |-
+        Approve a withdraw request and process it.
+        Only admin users can approve withdraw requests.
+      tags:
+        - wallet
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: withdrawId
+          type: string
+          format: uuid
+          in: path
+          required: true
+          description: Withdraw ID to approve
+      responses:
+        "200":
+          description: Withdraw approved and processed successfully
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/WithdrawResponse"
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPValidationError"
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "403":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "404":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+
+  /api/v1/wallet/withdraw/{withdrawId}/reject:
+    post:
+      summary: Reject withdraw request (Admin only)
+      operationId: PostRejectWithdrawRoute
+      description: |-
+        Reject a withdraw request.
+        Only admin users can reject withdraw requests.
+      tags:
+        - wallet
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: withdrawId
+          type: string
+          format: uuid
+          in: path
+          required: true
+          description: Withdraw ID to reject
+        - name: body
+          in: body
+          required: false
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/PostRejectWithdrawPayload"
+      responses:
+        "200":
+          description: Withdraw rejected successfully
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/WithdrawResponse"
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPValidationError"
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "403":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "404":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+
   /api/v1/wallet/collect:
     post:
       summary: Trigger manual collection
@@ -544,6 +645,49 @@ paths:
           schema:
             $ref: "../definitions/errors.yml#/definitions/PublicHTTPValidationError"
         "401":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+
+  /api/v1/wallet/hot-wallet:
+    post:
+      summary: Create hot wallet
+      operationId: PostCreateHotWalletRoute
+      description: |-
+        Create a hot wallet on the specified chain.
+        Only admin users can create hot wallets.
+      tags:
+        - wallet
+      security:
+        - Bearer: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/PostCreateHotWalletPayload"
+      responses:
+        "200":
+          description: Hot wallet created successfully
+          schema:
+            $ref: "../definitions/wallet.yml#/definitions/CreateHotWalletResponse"
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPValidationError"
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"
+        "403":
           description: PublicHTTPError
           schema:
             $ref: "../definitions/errors.yml#/definitions/PublicHTTPError"

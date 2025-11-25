@@ -22,25 +22,27 @@ const (
 
 // chainScanner 单个链的扫描器
 type chainScanner struct {
-	db             *sql.DB
-	client         *RPCClient
-	depositService deposit.Service
-	chainID        int
-	scanInterval   time.Duration
-	blockBatchSize int
-	stopCh         chan struct{}
+	db                    *sql.DB
+	client                *RPCClient
+	depositService        deposit.Service
+	withdrawStatusUpdater WithdrawStatusUpdater
+	chainID               int
+	scanInterval          time.Duration
+	blockBatchSize        int
+	stopCh                chan struct{}
 }
 
 // newChainScanner 创建新的链扫描器
-func newChainScanner(db *sql.DB, client *RPCClient, depositService deposit.Service, chainID int, scanInterval time.Duration, blockBatchSize int) *chainScanner {
+func newChainScanner(db *sql.DB, client *RPCClient, depositService deposit.Service, withdrawStatusUpdater WithdrawStatusUpdater, chainID int, scanInterval time.Duration, blockBatchSize int) *chainScanner {
 	return &chainScanner{
-		db:             db,
-		client:         client,
-		depositService: depositService,
-		chainID:        chainID,
-		scanInterval:   scanInterval,
-		blockBatchSize: blockBatchSize,
-		stopCh:         make(chan struct{}),
+		db:                    db,
+		client:                client,
+		depositService:        depositService,
+		withdrawStatusUpdater: withdrawStatusUpdater,
+		chainID:               chainID,
+		scanInterval:          scanInterval,
+		blockBatchSize:        blockBatchSize,
+		stopCh:                make(chan struct{}),
 	}
 }
 
@@ -326,5 +328,21 @@ func (s *chainScanner) runPostScanHooks(ctx context.Context, latestBlock *big.In
 		log.Debug().
 			Int("chain_id", s.chainID).
 			Msg("Successfully processed finalized deposits")
+	}
+
+	// 更新提现状态（pending -> processing -> confirmed）
+	if s.withdrawStatusUpdater != nil {
+		if err := s.withdrawStatusUpdater.UpdateWithdrawStatus(ctx, s.chainID, latestBlock.Int64()); err != nil {
+			log.Error().
+				Int("chain_id", s.chainID).
+				Int64("latest_block", latestBlock.Int64()).
+				Err(err).
+				Msg("Failed to update withdraw status")
+		} else {
+			log.Debug().
+				Int("chain_id", s.chainID).
+				Int64("latest_block", latestBlock.Int64()).
+				Msg("Successfully updated withdraw status")
+		}
 	}
 }

@@ -34,6 +34,7 @@ type User struct {
 	CreatedAt            time.Time         `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
 	UpdatedAt            time.Time         `boil:"updated_at" json:"updated_at" toml:"updated_at" yaml:"updated_at"`
 	RequiresConfirmation bool              `boil:"requires_confirmation" json:"requires_confirmation" toml:"requires_confirmation" yaml:"requires_confirmation"`
+	Role                 string            `boil:"role" json:"role" toml:"role" yaml:"role"`
 
 	R *userR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L userL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -49,6 +50,7 @@ var UserColumns = struct {
 	CreatedAt            string
 	UpdatedAt            string
 	RequiresConfirmation string
+	Role                 string
 }{
 	ID:                   "id",
 	Username:             "username",
@@ -59,6 +61,7 @@ var UserColumns = struct {
 	CreatedAt:            "created_at",
 	UpdatedAt:            "updated_at",
 	RequiresConfirmation: "requires_confirmation",
+	Role:                 "role",
 }
 
 var UserTableColumns = struct {
@@ -71,6 +74,7 @@ var UserTableColumns = struct {
 	CreatedAt            string
 	UpdatedAt            string
 	RequiresConfirmation string
+	Role                 string
 }{
 	ID:                   "users.id",
 	Username:             "users.username",
@@ -81,6 +85,7 @@ var UserTableColumns = struct {
 	CreatedAt:            "users.created_at",
 	UpdatedAt:            "users.updated_at",
 	RequiresConfirmation: "users.requires_confirmation",
+	Role:                 "users.role",
 }
 
 // Generated where
@@ -116,6 +121,7 @@ var UserWhere = struct {
 	CreatedAt            whereHelpertime_Time
 	UpdatedAt            whereHelpertime_Time
 	RequiresConfirmation whereHelperbool
+	Role                 whereHelperstring
 }{
 	ID:                   whereHelperstring{field: "\"users\".\"id\""},
 	Username:             whereHelpernull_String{field: "\"users\".\"username\""},
@@ -126,6 +132,7 @@ var UserWhere = struct {
 	CreatedAt:            whereHelpertime_Time{field: "\"users\".\"created_at\""},
 	UpdatedAt:            whereHelpertime_Time{field: "\"users\".\"updated_at\""},
 	RequiresConfirmation: whereHelperbool{field: "\"users\".\"requires_confirmation\""},
+	Role:                 whereHelperstring{field: "\"users\".\"role\""},
 }
 
 // UserRels is where relationship names are stored.
@@ -317,9 +324,9 @@ func (r *userR) GetWithdraws() WithdrawSlice {
 type userL struct{}
 
 var (
-	userAllColumns            = []string{"id", "username", "password", "is_active", "scopes", "last_authenticated_at", "created_at", "updated_at", "requires_confirmation"}
+	userAllColumns            = []string{"id", "username", "password", "is_active", "scopes", "last_authenticated_at", "created_at", "updated_at", "requires_confirmation", "role"}
 	userColumnsWithoutDefault = []string{"is_active", "scopes", "created_at", "updated_at"}
-	userColumnsWithDefault    = []string{"id", "username", "password", "last_authenticated_at", "requires_confirmation"}
+	userColumnsWithDefault    = []string{"id", "username", "password", "last_authenticated_at", "requires_confirmation", "role"}
 	userPrimaryKeyColumns     = []string{"id"}
 	userGeneratedColumns      = []string{}
 )

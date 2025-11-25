@@ -38,7 +38,9 @@ info-go: ##- (opt) Prints go.mod updates, module-name and current go version.
 lint: check-gen-dirs check-script-dir check-handlers check-embedded-modules-go-not go-lint  ##- Runs golangci-lint and make check-*.
 
 # these recipies may execute in parallel
-build-pre: sql swagger go-generate ##- (opt) Runs pre-build related targets (sql, swagger, go-generate-handlers, go-generate).
+# Note: swagger must complete before go-generate (go generate may need generated types)
+build-pre: sql swagger ##- (opt) Runs pre-build related targets (sql, swagger, go-generate-handlers, go-generate).
+	@$(MAKE) go-generate
 	@$(MAKE) go-generate-handlers
 
 go-format: ##- (opt) Runs go format.
@@ -315,8 +317,12 @@ swagger-generate: ##- (opt) Generate swagger /internal/types.
 		--skip-validation \
 		--config-file=api/config/go-swagger-config.yml \
 		-q
-	@find tmp/testdata/types -type f -exec sed -i "s|${GO_MODULE_NAME}/tmp/testdata/types|${GO_MODULE_NAME}/internal/types|g" {} \;
-	rsync -au --ignore-times --delete tmp/testdata/types/ internal/types/
+	@if command -v gsed >/dev/null 2>&1; then \
+		find tmp/testdata/types -type f -exec gsed -i "s|${GO_MODULE_NAME}/tmp/testdata/types|${GO_MODULE_NAME}/internal/types|g" {} \; ; \
+	else \
+		find tmp/testdata/types -type f -exec sed -i'' "s|${GO_MODULE_NAME}/tmp/testdata/types|${GO_MODULE_NAME}/internal/types|g" {} \; ; \
+	fi
+	@rsync -au --ignore-times --delete tmp/testdata/types/ internal/types/
 
 swagger-validate: ##- (opt) Validate api/swagger.yml.
 	@echo "make swagger-validate"

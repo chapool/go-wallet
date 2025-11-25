@@ -40,9 +40,9 @@ type WithdrawItem struct {
 	ID *strfmt.UUID `json:"id"`
 
 	// status
-	// Example: pending
+	// Example: user_withdraw_request
 	// Required: true
-	// Enum: [pending processing confirmed failed]
+	// Enum: [user_withdraw_request signing pending processing confirmed failed]
 	Status *string `json:"status"`
 
 	// to address
@@ -142,7 +142,7 @@ var withdrawItemTypeStatusPropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["pending","processing","confirmed","failed"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["user_withdraw_request","signing","pending","processing","confirmed","failed"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
@@ -151,6 +151,12 @@ func init() {
 }
 
 const (
+
+	// WithdrawItemStatusUserWithdrawRequest captures enum value "user_withdraw_request"
+	WithdrawItemStatusUserWithdrawRequest string = "user_withdraw_request"
+
+	// WithdrawItemStatusSigning captures enum value "signing"
+	WithdrawItemStatusSigning string = "signing"
 
 	// WithdrawItemStatusPending captures enum value "pending"
 	WithdrawItemStatusPending string = "pending"

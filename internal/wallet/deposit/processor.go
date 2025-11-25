@@ -53,9 +53,14 @@ func (p *transactionStatusProcessor) updateTransactionStatus(ctx context.Context
 
 	// 查询所有待更新的交易（包括所有状态，因为确认数需要持续更新）
 	// 注意：finalized 状态的交易也需要更新确认数，以便追踪
+	// 包括所有类型的交易：deposit, withdraw, collect, rebalance
 	transactions, err := models.Transactions(
 		models.TransactionWhere.ChainID.EQ(chainID),
-		models.TransactionWhere.Status.IN([]string{"confirmed", "safe", "finalized"}),
+		models.TransactionWhere.Status.IN([]string{
+			models.TransactionStatusConfirmed,
+			models.TransactionStatusSafe,
+			models.TransactionStatusFinalized,
+		}),
 		qm.OrderBy("block_no ASC"),
 	).All(ctx, p.db)
 
@@ -82,10 +87,11 @@ func (p *transactionStatusProcessor) updateTransactionStatus(ctx context.Context
 			currentConfirmationCount = int64(tx.ConfirmationCount.Int)
 		}
 
-		log.Info().
+		log.Debug().
 			Int("chain_id", chainID).
 			Str("tx_hash", tx.TXHash).
 			Str("tx_id", tx.ID).
+			Str("tx_type", tx.Type).
 			Int64("tx_block_no", tx.BlockNo).
 			Int64("latest_block", latestBlockNumber.Int64()).
 			Int64("current_confirmation_count", currentConfirmationCount).

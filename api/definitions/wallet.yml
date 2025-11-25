@@ -278,7 +278,7 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/PendingDepositItem"
-  
+
   # 余额相关定义
   PendingDepositBalanceResponse:
     type: object
@@ -382,8 +382,8 @@ definitions:
         example: "0x..."
       status:
         type: string
-        enum: [pending, processing, confirmed, failed]
-        example: "pending"
+        enum: [user_withdraw_request, signing, pending, processing, confirmed, failed]
+        example: "user_withdraw_request"
       created_at:
         type: string
         format: date-time
@@ -404,18 +404,25 @@ definitions:
         items:
           $ref: "#/definitions/WithdrawItem"
 
+  PostRejectWithdrawPayload:
+    type: object
+    properties:
+      reason:
+        type: string
+        description: Reason for rejection (optional)
+        example: "Insufficient funds in hot wallet"
+
   PostCollectPayload:
     type: object
-    required: [wallet_id]
     properties:
       wallet_id:
         type: string
         format: uuid
-        description: Wallet ID to collect from
+        description: Wallet ID to collect from (optional, if not provided, chain_id must be provided)
         example: "550e8400-e29b-41d4-a716-446655440000"
       chain_id:
         type: integer
-        description: Chain ID (optional, will use wallet's chain_id if not provided)
+        description: Chain ID (required if wallet_id is not provided, will use wallet's chain_id if wallet_id is provided)
         example: 1
 
   CollectResponse:
@@ -522,4 +529,54 @@ definitions:
       amount:
         type: string
         example: "1000000000000000000"
+
+  PostCreateHotWalletPayload:
+    type: object
+    required: [chain_id, device_name]
+    properties:
+      chain_id:
+        type: integer
+        description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC, etc.)
+        example: 1
+      device_name:
+        type: string
+        description: Device name for the hot wallet
+        example: "hot-wallet-1"
+
+  CreateHotWalletResponse:
+    type: object
+    required: [id, address, chain_type, chain_id, chain_name, derivation_path, address_index, wallet_type, created_at]
+    properties:
+      id:
+        type: string
+        format: uuid
+        example: "550e8400-e29b-41d4-a716-446655440000"
+      address:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      chain_type:
+        type: string
+        example: "evm"
+      chain_id:
+        type: integer
+        example: 1
+      chain_name:
+        type: string
+        example: "Ethereum Mainnet"
+      derivation_path:
+        type: string
+        example: "m/44'/60'/0'/0/0"
+      address_index:
+        type: integer
+        example: 0
+      wallet_type:
+        type: string
+        example: "hot"
+      device_name:
+        type: string
+        example: "hot-wallet-1"
+      created_at:
+        type: string
+        format: date-time
+        example: "2025-01-01T00:00:00Z"
 

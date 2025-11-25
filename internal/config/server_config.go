@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github/chapool/go-wallet/internal/mailer/transport"
 	"github/chapool/go-wallet/internal/push/provider"
 	"github/chapool/go-wallet/internal/util"
+
+	"github.com/rs/zerolog"
 	"golang.org/x/text/language"
 )
 
@@ -101,6 +102,11 @@ type I18n struct {
 	BundleDirAbs    string
 }
 
+type Wallet struct {
+	EnableAutoCollect bool
+	EnableSigning     bool
+}
+
 type Server struct {
 	Database   Database
 	Echo       EchoServer
@@ -115,6 +121,7 @@ type Server struct {
 	Push       PushService
 	FCMConfig  provider.FCMConfig
 	I18n       I18n
+	Wallet     Wallet
 }
 
 // DefaultServiceConfigFromEnv returns the server config as parsed from environment variables
@@ -253,6 +260,10 @@ func DefaultServiceConfigFromEnv() Server {
 		I18n: I18n{
 			DefaultLanguage: util.GetEnvAsLanguageTag("SERVER_I18N_DEFAULT_LANGUAGE", language.English),
 			BundleDirAbs:    util.GetEnv("SERVER_I18N_BUNDLE_DIR_ABS", filepath.Join(util.GetProjectRootDir(), "/web/i18n")), // /app/web/i18n
+		},
+		Wallet: Wallet{
+			EnableAutoCollect: util.GetEnvAsBool("WALLET_ENABLE_AUTO_COLLECT", false),
+			EnableSigning:     util.GetEnvAsBool("WALLET_ENABLE_SIGNING", true),
 		},
 	}
 }

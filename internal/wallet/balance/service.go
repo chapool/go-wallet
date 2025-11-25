@@ -251,8 +251,9 @@ func (s *service) GetBalanceByToken(ctx context.Context, userID string, chainID 
 }
 
 // GetAvailableBalance 获取可用余额
-// 计算逻辑：SUM(finalized credits) + SUM(pending/processing/frozen withdraw credits)
+// 计算逻辑：SUM(finalized credits) + SUM(pending/frozen withdraw credits)
 // 前提：提现时必须创建负数金额的 credits 记录
+// 注意：'processing' 和 'signing' 是 withdraw_status 枚举值，不是 credit_status 枚举值
 func (s *service) GetAvailableBalance(ctx context.Context, userID string, chainID int, tokenID int) (*big.Float, error) {
 	var totalAmountStr string
 
@@ -264,7 +265,7 @@ func (s *service) GetAvailableBalance(ctx context.Context, userID string, chainI
 			AND token_id = $3
 			AND (
 				status = 'finalized' 
-				OR (credit_type = 'withdraw' AND status IN ('pending', 'processing', 'frozen', 'signing'))
+				OR (credit_type = 'withdraw' AND status IN ('pending', 'frozen'))
 			)
 	`
 

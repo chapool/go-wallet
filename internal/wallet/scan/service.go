@@ -15,29 +15,31 @@ import (
 
 // service 实现 Service 接口
 type service struct {
-	db             *sql.DB
-	chainService   chain.Service
-	depositService deposit.Service
-	clients        map[int]*RPCClient // chainID -> RPCClient
-	clientsMu      sync.RWMutex
-	scanners       map[int]*chainScanner // chainID -> scanner
-	scannersMu     sync.RWMutex
-	scanInterval   time.Duration
-	blockBatchSize int
+	db                    *sql.DB
+	chainService          chain.Service
+	depositService        deposit.Service
+	withdrawStatusUpdater WithdrawStatusUpdater
+	clients               map[int]*RPCClient // chainID -> RPCClient
+	clientsMu             sync.RWMutex
+	scanners              map[int]*chainScanner // chainID -> scanner
+	scannersMu            sync.RWMutex
+	scanInterval          time.Duration
+	blockBatchSize        int
 }
 
 // NewService 创建扫描服务
 //
 //nolint:ireturn
-func NewService(db *sql.DB, chainService chain.Service, depositService deposit.Service, scanInterval time.Duration, blockBatchSize int) Service {
+func NewService(db *sql.DB, chainService chain.Service, depositService deposit.Service, withdrawStatusUpdater WithdrawStatusUpdater, scanInterval time.Duration, blockBatchSize int) Service {
 	return &service{
-		db:             db,
-		chainService:   chainService,
-		depositService: depositService,
-		clients:        make(map[int]*RPCClient),
-		scanners:       make(map[int]*chainScanner),
-		scanInterval:   scanInterval,
-		blockBatchSize: blockBatchSize,
+		db:                    db,
+		chainService:          chainService,
+		depositService:        depositService,
+		withdrawStatusUpdater: withdrawStatusUpdater,
+		clients:               make(map[int]*RPCClient),
+		scanners:              make(map[int]*chainScanner),
+		scanInterval:          scanInterval,
+		blockBatchSize:        blockBatchSize,
 	}
 }
 
@@ -139,7 +141,7 @@ func (s *service) StartChainScan(ctx context.Context, chainID int) error {
 	s.scannersMu.Lock()
 	scanner, exists := s.scanners[chainID]
 	if !exists {
-		scanner = newChainScanner(s.db, client, s.depositService, chainID, s.scanInterval, s.blockBatchSize)
+		scanner = newChainScanner(s.db, client, s.depositService, s.withdrawStatusUpdater, chainID, s.scanInterval, s.blockBatchSize)
 		s.scanners[chainID] = scanner
 	}
 	s.scannersMu.Unlock()
@@ -157,7 +159,7 @@ func (s *service) ScanChainBlock(ctx context.Context, chainID int, blockNumber *
 	}
 
 	// 创建临时扫描器
-	scanner := newChainScanner(s.db, client, s.depositService, chainID, s.scanInterval, s.blockBatchSize)
+	scanner := newChainScanner(s.db, client, s.depositService, s.withdrawStatusUpdater, chainID, s.scanInterval, s.blockBatchSize)
 	if err := scanner.scanBlock(ctx, blockNumber); err != nil {
 		return err
 	}

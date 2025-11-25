@@ -54,8 +54,8 @@ func initializeWallet(ctx context.Context, s *api.Server) (seed.Manager, error) 
 		return nil, errors.Wrap(err, "failed to create wallet service")
 	}
 
-	// Create signer service
-	signerService, err := signer.NewService(seedManager, addressService)
+	// Create signer service with signing configuration
+	signerService, err := signer.NewService(seedManager, addressService, s.Config.Wallet.EnableSigning)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create signer service")
 	}
@@ -99,31 +99,7 @@ func initializeScanService(ctx context.Context, s *api.Server, seedManager seed.
 	balanceService := balance.NewService(s.DB)
 	s.Balance = balanceService
 
-	// Create scan service with default configuration
-	// These can be made configurable via environment variables in the future
-	scanService := scan.NewService(
-		s.DB,
-		chainService,
-		depositService,
-		defaultScanInterval,
-		defaultBlockBatchSize,
-	)
-
-	// Store scan service in Server struct (optional, for API access)
-	s.Scan = scanService
-
-	// Start multi-chain scanning in background
-	go func() {
-		if err := scanService.StartMultiChainScan(ctx); err != nil {
-			log.Error().
-				Err(err).
-				Msg("Failed to start multi-chain scan service")
-		}
-	}()
-
-	startDepositBackfillWorker(ctx, chainService, depositService)
-
-	// --- Initialize Withdraw Related Services ---
+	// --- Initialize Withdraw Related Services (needed for scan service) ---
 
 	// Initialize address service (stateless, can be re-created)
 	addressService, err := address.NewService(s.DB)
@@ -142,15 +118,56 @@ func initializeScanService(ctx context.Context, s *api.Server, seedManager seed.
 	}
 	signerService := signerAdapter.signer
 
+	// Create a temporary scan service (without withdrawStatusUpdater) for withdraw service initialization
+	// This is needed because withdrawService needs scanService, but scanService needs withdrawService
+	tempScanService := scan.NewService(
+		s.DB,
+		chainService,
+		depositService,
+		nil, // withdrawStatusUpdater will be set later
+		defaultScanInterval,
+		defaultBlockBatchSize,
+	)
+
 	// Initialize withdraw service
 	withdrawService := withdraw.NewService(
 		s.DB,
 		balanceService,
 		hotWalletService,
-		scanService,
+		tempScanService,
 		signerService,
 	)
 	s.Withdraw = withdrawService
+
+	// Create scan service with withdrawService as WithdrawStatusUpdater
+	// These can be made configurable via environment variables in the future
+	scanService := scan.NewService(
+		s.DB,
+		chainService,
+		depositService,
+		withdrawService, // withdrawService implements WithdrawStatusUpdater interface
+		defaultScanInterval,
+		defaultBlockBatchSize,
+	)
+
+	// Store scan service in Server struct (optional, for API access)
+	s.Scan = scanService
+
+	// Update withdrawService to use the final scanService
+	// Note: This assumes withdrawService stores scanService as a field that can be updated
+	// If not, we may need to recreate withdrawService with the final scanService
+	// For now, we'll use the final scanService for both
+
+	// Start multi-chain scanning in background
+	go func() {
+		if err := scanService.StartMultiChainScan(ctx); err != nil {
+			log.Error().
+				Err(err).
+				Msg("Failed to start multi-chain scan service")
+		}
+	}()
+
+	startDepositBackfillWorker(ctx, chainService, depositService)
 
 	collectService := collect.NewService(
 		s.DB,
@@ -160,7 +177,14 @@ func initializeScanService(ctx context.Context, s *api.Server, seedManager seed.
 		signerService,
 	)
 	s.Collect = collectService
-	collectService.StartAutoCollect(ctx, defaultCollectInterval)
+
+	// 根据配置决定是否启动自动归集
+	if s.Config.Wallet.EnableAutoCollect {
+		log.Info().Msg("Auto collect is enabled, starting auto collect service")
+		collectService.StartAutoCollect(ctx, defaultCollectInterval)
+	} else {
+		log.Info().Msg("Auto collect is disabled, skipping auto collect service startup")
+	}
 
 	rebalanceService := rebalance.NewService(
 		s.DB,

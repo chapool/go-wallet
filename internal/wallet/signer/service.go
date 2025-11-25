@@ -11,20 +11,27 @@ import (
 type service struct {
 	seedManager    seed.Manager
 	addressService address.Service
+	enableSigning  bool
 }
 
 // NewService creates a new SignerService
 //
 //nolint:ireturn // Returning interface is intentional for dependency injection
-func NewService(seedManager seed.Manager, addressService address.Service) (Service, error) {
+func NewService(seedManager seed.Manager, addressService address.Service, enableSigning bool) (Service, error) {
 	return &service{
 		seedManager:    seedManager,
 		addressService: addressService,
+		enableSigning:  enableSigning,
 	}, nil
 }
 
 // SignEVMTransaction signs an EVM transaction (EIP-1559)
 func (s *service) SignEVMTransaction(ctx context.Context, req *SignEVMRequest) (*SignEVMResponse, error) {
+	// Check if signing is enabled
+	if !s.enableSigning {
+		return nil, errors.New("signing is disabled by configuration")
+	}
+
 	// Get seed from memory
 	seed := s.seedManager.GetSeed()
 	if seed == nil {

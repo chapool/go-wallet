@@ -783,6 +783,48 @@ paths:
           description: PublicHTTPError
           schema:
             $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/hot-wallet:
+    post:
+      security:
+      - Bearer: []
+      description: |-
+        Create a hot wallet on the specified chain.
+        Only admin users can create hot wallets.
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Create hot wallet
+      operationId: PostCreateHotWalletRoute
+      parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/postCreateHotWalletPayload'
+      responses:
+        "200":
+          description: Hot wallet created successfully
+          schema:
+            $ref: '#/definitions/createHotWalletResponse'
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: '#/definitions/publicHttpValidationError'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "403":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
   /api/v1/wallet/list:
     get:
       security:
@@ -913,6 +955,104 @@ paths:
           schema:
             $ref: '#/definitions/publicHttpValidationError'
         "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/withdraw/{withdrawId}/approve:
+    post:
+      security:
+      - Bearer: []
+      description: |-
+        Approve a withdraw request and process it.
+        Only admin users can approve withdraw requests.
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Approve withdraw request (Admin only)
+      operationId: PostApproveWithdrawRoute
+      parameters:
+      - type: string
+        format: uuid
+        description: Withdraw ID to approve
+        name: withdrawId
+        in: path
+        required: true
+      responses:
+        "200":
+          description: Withdraw approved and processed successfully
+          schema:
+            $ref: '#/definitions/withdrawResponse'
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: '#/definitions/publicHttpValidationError'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "403":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "404":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "500":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+  /api/v1/wallet/withdraw/{withdrawId}/reject:
+    post:
+      security:
+      - Bearer: []
+      description: |-
+        Reject a withdraw request.
+        Only admin users can reject withdraw requests.
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - wallet
+      summary: Reject withdraw request (Admin only)
+      operationId: PostRejectWithdrawRoute
+      parameters:
+      - type: string
+        format: uuid
+        description: Withdraw ID to reject
+        name: withdrawId
+        in: path
+        required: true
+      - name: body
+        in: body
+        schema:
+          $ref: '#/definitions/postRejectWithdrawPayload'
+      responses:
+        "200":
+          description: Withdraw rejected successfully
+          schema:
+            $ref: '#/definitions/withdrawResponse'
+        "400":
+          description: PublicHTTPValidationError
+          schema:
+            $ref: '#/definitions/publicHttpValidationError'
+        "401":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "403":
+          description: PublicHTTPError
+          schema:
+            $ref: '#/definitions/publicHttpError'
+        "404":
           description: PublicHTTPError
           schema:
             $ref: '#/definitions/publicHttpError'
@@ -1089,6 +1229,51 @@ definitions:
         type: string
         format: uuid
         example: 550e8400-e29b-41d4-a716-446655440000
+  createHotWalletResponse:
+    type: object
+    required:
+    - id
+    - address
+    - chain_type
+    - chain_id
+    - chain_name
+    - derivation_path
+    - address_index
+    - wallet_type
+    - created_at
+    properties:
+      address:
+        type: string
+        example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+      address_index:
+        type: integer
+        example: 0
+      chain_id:
+        type: integer
+        example: 1
+      chain_name:
+        type: string
+        example: Ethereum Mainnet
+      chain_type:
+        type: string
+        example: evm
+      created_at:
+        type: string
+        format: date-time
+        example: "2025-01-01T00:00:00Z"
+      derivation_path:
+        type: string
+        example: m/44'/60'/0'/0/0
+      device_name:
+        type: string
+        example: hot-wallet-1
+      id:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440000
+      wallet_type:
+        type: string
+        example: hot
   createWalletResponse:
     type: object
     required:
@@ -1390,18 +1575,33 @@ definitions:
         example: correct horse battery staple
   postCollectPayload:
     type: object
-    required:
-    - wallet_id
     properties:
       chain_id:
-        description: Chain ID (optional, will use wallet's chain_id if not provided)
+        description: Chain ID (required if wallet_id is not provided, will use wallet's
+          chain_id if wallet_id is provided)
         type: integer
         example: 1
       wallet_id:
-        description: Wallet ID to collect from
+        description: Wallet ID to collect from (optional, if not provided, chain_id
+          must be provided)
         type: string
         format: uuid
         example: 550e8400-e29b-41d4-a716-446655440000
+  postCreateHotWalletPayload:
+    type: object
+    required:
+    - chain_id
+    - device_name
+    properties:
+      chain_id:
+        description: Chain ID (1 for Ethereum Mainnet, 137 for Polygon, 56 for BSC,
+          etc.)
+        type: integer
+        example: 1
+      device_name:
+        description: Device name for the hot wallet
+        type: string
+        example: hot-wallet-1
   postCreateWalletPayload:
     type: object
     required:
@@ -1548,6 +1748,13 @@ definitions:
         maxLength: 255
         minLength: 1
         example: user@example.com
+  postRejectWithdrawPayload:
+    type: object
+    properties:
+      reason:
+        description: Reason for rejection (optional)
+        type: string
+        example: Insufficient funds in hot wallet
   postSignTransactionPayload:
     type: object
     required:
@@ -1843,11 +2050,13 @@ definitions:
       status:
         type: string
         enum:
+        - user_withdraw_request
+        - signing
         - pending
         - processing
         - confirmed
         - failed
-        example: pending
+        example: user_withdraw_request
       to_address:
         type: string
         example: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
