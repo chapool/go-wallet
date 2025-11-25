@@ -90,11 +90,18 @@ internal/wallet/
 │   ├── reorg.go
 │   └── analyzer.go
 ├── deposit/                      # 充值处理
+│   ├── service.go
+│   └── processor.go
 ├── withdraw/                     # 提现处理
+│   └── service.go                # 包含 ApproveWithdraw, RejectWithdraw, UpdateWithdrawStatus
 ├── collect/                      # 归集
+│   └── service.go                # 包含 CollectWallet, CollectForChain, StartAutoCollect
 ├── rebalance/                    # 资金调度
+│   └── service.go                # 包含 RebalanceForChain, Rebalance, StartAutoRebalance
 ├── balance/                      # 余额管理
+│   └── service.go
 ├── hotwallet/                    # 热钱包管理
+│   └── service.go                # 包含 CreateHotWallet, GetHotWallet, SelectHotWallet
 └── types.go
 ```
 
@@ -107,6 +114,13 @@ internal/api/handlers/wallet/
 ├── post_sign_transaction.go
 ├── get_deposits.go
 ├── post_withdraw.go
+├── post_approve_withdraw.go      # 管理员批准提现
+├── post_reject_withdraw.go       # 管理员拒绝提现
+├── get_withdraws.go
+├── post_create_hot_wallet.go     # 创建热钱包（管理员权限）
+├── post_collect.go               # 手动归集（管理员权限）
+├── get_collects.go               # 查询归集记录
+├── post_rebalance.go             # 手动调度
 ├── get_balance_total.go
 └── ...
 ```
@@ -581,28 +595,16 @@ internal/api/handlers/wallet/
 遵循 go-starter 的 handler 模式：
 
 ```go
-// internal/api/handlers/wallet/handler.go
-package wallet
-
-import (
-    "allaboutapps.dev/aw/go-starter/internal/api"
-)
-
-type Handler struct {
-    server *api.Server
-}
-
-func NewHandler(s *api.Server) *Handler {
-    return &Handler{server: s}
-}
-
 // internal/api/handlers/wallet/post_create_wallet.go
 package wallet
 
 import (
     "net/http"
-    "allaboutapps.dev/aw/go-starter/internal/api"
-    "allaboutapps.dev/aw/go-starter/internal/util"
+    "github/chapool/go-wallet/internal/api"
+    "github/chapool/go-wallet/internal/api/httperrors"
+    "github/chapool/go-wallet/internal/auth"
+    "github/chapool/go-wallet/internal/types"
+    "github/chapool/go-wallet/internal/util"
     "github.com/labstack/echo/v4"
 )
 
@@ -613,6 +615,10 @@ func PostCreateWalletRoute(s *api.Server) *echo.Route {
 func postCreateWalletHandler(s *api.Server) echo.HandlerFunc {
     return func(c echo.Context) error {
         ctx := c.Request().Context()
+        user := auth.UserFromContext(ctx)
+        if user == nil {
+            return echo.ErrUnauthorized
+        }
         log := util.LogFromContext(ctx)
         
         // 参数验证（Handler 层）
@@ -622,10 +628,10 @@ func postCreateWalletHandler(s *api.Server) echo.HandlerFunc {
         }
         
         // 调用 Service 层
-        wallet, err := s.Wallet.CreateWallet(ctx, body.UserID, body.ChainType)
+        wallet, err := s.Wallet.CreateWallet(ctx, user.ID, body.ChainID)
         if err != nil {
-            log.Debug().Err(err).Msg("Failed to create wallet")
-            return err
+            log.Error().Err(err).Msg("Failed to create wallet")
+            return httperrors.NewHTTPError(http.StatusInternalServerError, types.PublicHTTPErrorTypeGeneric, "Failed to create wallet")
         }
         
         // 返回响应
@@ -634,6 +640,60 @@ func postCreateWalletHandler(s *api.Server) echo.HandlerFunc {
     }
 }
 ```
+
+### 角色管理和权限控制
+
+**角色定义**：
+
+```go
+// internal/auth/roles.go
+package auth
+
+type UserRole string
+
+const (
+    RoleAdmin UserRole = "admin"
+    RoleUser  UserRole = "user"
+)
+```
+
+**权限检查模式**：
+
+```go
+// ✅ 正确 - 管理员权限检查
+func postCreateHotWalletHandler(s *api.Server) echo.HandlerFunc {
+    return func(c echo.Context) error {
+        ctx := c.Request().Context()
+        user := auth.UserFromContext(ctx)
+        if user == nil {
+            return echo.ErrUnauthorized
+        }
+        log := util.LogFromContext(ctx)
+
+        // 检查用户是否为管理员
+        if user.Role != string(auth.RoleAdmin) {
+            log.Warn().
+                Str("user_id", user.ID).
+                Str("user_role", user.Role).
+                Msg("Non-admin user attempted to create hot wallet")
+            return httperrors.NewHTTPError(
+                http.StatusForbidden,
+                types.PublicHTTPErrorTypeGeneric,
+                "Only admin users can create hot wallets",
+            )
+        }
+        
+        // ... 业务逻辑
+    }
+}
+```
+
+**权限控制清单**：
+- ✅ 热钱包创建：仅 `admin` 用户
+- ✅ 提现批准/拒绝：仅 `admin` 用户
+- ✅ 手动归集：仅 `admin` 用户
+- ✅ 归集查询：`admin` 可查询所有记录，`user` 只能查询自己的
+- ✅ 普通钱包创建：所有用户都可以
 
 ### 错误处理规范
 
@@ -909,30 +969,55 @@ func (w *Wallet) ToTypes() *types.CreateWalletResponse {
 
 ## 配置规范
 
-### 环境变量
+### 全局配置管理
 
-所有配置通过环境变量，使用 `internal/config` 包：
+所有钱包相关配置通过环境变量，使用 `internal/config` 包：
 
 ```go
-// internal/config/wallet_config.go
-package config
-
+// internal/config/server_config.go
 type Wallet struct {
-    KeystoreVersion int
-    ScryptN         int
-    ScryptR         int
-    ScryptP         int
-    DefaultDeviceName string
+    EnableAutoCollect   bool  // 是否启用自动归集（默认 false）
+    EnableAutoRebalance bool  // 是否启用自动调度（默认 false）
+    EnableSigning       bool  // 是否启用签名功能（默认 false）
 }
 ```
 
-### 配置加载
+**环境变量**：
+- `WALLET_ENABLE_AUTO_COLLECT`: 控制是否启动自动归集服务（默认 `false`）
+- `WALLET_ENABLE_AUTO_REBALANCE`: 控制是否启动自动调度服务（默认 `false`）
+- `WALLET_ENABLE_SIGNING`: 控制是否允许交易签名（默认 `false`）
+
+**安全设计**：
+- 默认值均为 `false`，需要显式启用
+- 签名功能禁用时，`SignEVMTransaction` 会返回错误
+- 自动归集/调度禁用时，不会启动定时任务
+
+**配置使用**：
 
 ```go
-// 在 config.Server 中添加 Wallet 配置
-type Server struct {
-    // ...
-    Wallet config.Wallet
+// cmd/server/wallet_init.go
+// 根据配置决定是否启动自动归集
+if s.Config.Wallet.EnableAutoCollect {
+    log.Info().Msg("Auto collect is enabled, starting auto collect service")
+    collectService.StartAutoCollect(ctx, defaultCollectInterval)
+} else {
+    log.Info().Msg("Auto collect is disabled, skipping auto collect service startup")
+}
+
+// 根据配置决定是否启动自动调度
+if s.Config.Wallet.EnableAutoRebalance {
+    log.Info().Msg("Auto rebalance is enabled, starting auto rebalance service")
+    rebalanceService.StartAutoRebalance(ctx, defaultRebalanceInterval)
+} else {
+    log.Info().Msg("Auto rebalance is disabled, skipping auto rebalance service startup")
+}
+
+// internal/wallet/signer/service.go
+func (s *service) SignEVMTransaction(ctx context.Context, req *SignEVMRequest) (*SignEVMResponse, error) {
+    if !s.enableSigning {
+        return nil, errors.New("signing is disabled by configuration")
+    }
+    // ... 签名逻辑
 }
 ```
 
@@ -951,6 +1036,10 @@ type Server struct {
 - [ ] 通过 `golangci-lint` 检查
 - [ ] 单元测试覆盖核心逻辑
 - [ ] API Handler 遵循 go-starter 模式
+- [ ] 管理员权限检查（使用 `auth.RoleAdmin` 常量）
+- [ ] 全局配置检查（EnableAutoCollect, EnableAutoRebalance, EnableSigning）
+- [ ] 归集/调度操作不创建 `credits` 记录（只创建 `transactions`）
+- [ ] 提现状态流转正确（user_withdraw_request → pending → processing → confirmed）
 
 ## 构建和开发流程
 
@@ -1029,6 +1118,17 @@ func (s *Service) CreateWallet(ctx context.Context, req *Request) (*Wallet, erro
 
 // ❌ 错误 - 直接使用 c.JSON 返回响应
 return c.JSON(http.StatusOK, response)  // 应该使用 util.ValidateAndReturn
+
+// ❌ 错误 - 使用字符串字面量而不是常量
+if user.Role != "admin" {  // ❌ 应该使用 auth.RoleAdmin
+    return err
+}
+
+// ❌ 错误 - 归集操作创建 credits 记录
+// 归集不应该影响用户余额，只创建 transactions 记录
+
+// ❌ 错误 - 无条件启动自动服务
+rebalanceService.StartAutoRebalance(ctx, interval)  // ❌ 应该检查配置
 ```
 
 ### ✅ 应该这样做
@@ -1080,7 +1180,72 @@ func postCreateWalletHandler(s *api.Server) echo.HandlerFunc {
     // Service 层不再验证参数
     wallet, err := s.Wallet.CreateWallet(ctx, body.UserID, body.ChainType)
 }
+
+// ✅ 正确 - 使用角色常量
+if user.Role != string(auth.RoleAdmin) {
+    return httperrors.NewHTTPError(http.StatusForbidden, ...)
+}
+
+// ✅ 正确 - 根据配置启动服务
+if s.Config.Wallet.EnableAutoRebalance {
+    rebalanceService.StartAutoRebalance(ctx, interval)
+}
+
+// ✅ 正确 - 归集只创建 transactions 记录
+func (s *service) insertCollectTransaction(ctx context.Context, ...) error {
+    tx := &models.Transaction{
+        Type: models.TransactionTypeCollect,
+        // ... 不创建 credits 记录
+    }
+    return tx.Insert(ctx, s.db, boil.Infer())
+}
 ```
+
+## 业务逻辑规范
+
+### 提现流程
+
+**状态管理**：
+- 用户发起提现：状态为 `user_withdraw_request`，需要管理员审核
+- 管理员批准：调用 `ProcessWithdraw`，状态变为 `pending`
+- 管理员拒绝：状态变为 `failed`，释放冻结资金
+- 自动更新：区块扫描器根据确认数更新状态（pending → processing → confirmed）
+
+**余额冻结**：
+- 提现请求时创建 `frozen` credits 记录
+- 提现成功时，`frozen` credits 转为 `finalized`
+- 提现失败时，`frozen` credits 转为 `failed`
+
+### 归集流程
+
+**重要原则**：
+- 归集**不会**影响用户余额
+- 归集只创建 `transactions` 记录（type='collect'），不创建 `credits` 记录
+- 归集顺序：先归集 ERC20 Token，再归集 Native Token
+
+**Gas 管理**：
+- ERC20 归集前检查用户钱包的 Native Token 余额
+- 如果余额不足，从热钱包向用户钱包充值少量 Native Token
+- 使用 `ensureNativeGas` 方法处理 Gas 充值
+
+### 调度流程
+
+**调度原则**：
+- 调度是热钱包之间的资金转移，不影响用户余额
+- 调度只创建 `transactions` 记录（type='rebalance'），不创建 `credits` 记录
+- 调度策略：保持热钱包余额在最小/最大阈值之间（默认 3-8 ETH）
+
+### 热钱包管理
+
+**创建规则**：
+- 只有 `admin` 用户可以创建热钱包
+- 热钱包地址从系统种子派生，与用户钱包使用相同的索引空间
+- 热钱包存储在 `wallets` 表中，`wallet_type = 'hot'`
+
+**选择策略**：
+- 按 `last_used_at` 排序，优先使用最近未使用的热钱包
+- 检查热钱包余额是否充足（Native Token 和 ERC20 Token）
+- 原子性更新 nonce，防止并发问题
 
 ## 参考资料
 
@@ -1089,6 +1254,7 @@ func postCreateWalletHandler(s *api.Server) echo.HandlerFunc {
 - [SQLBoiler 文档](https://github.com/volatiletech/sqlboiler)
 - [Echo 框架文档](https://echo.labstack.com/)
 - [设计文档](./docs/hd-wallet-design.md)
+- [开发计划](./docs/development-plan.md)
 
 ---
 
@@ -1098,4 +1264,10 @@ func postCreateWalletHandler(s *api.Server) echo.HandlerFunc {
 - 使用 Wire 进行依赖注入，不要手动初始化
 - 所有数据库操作使用 SQLBoiler 模型
 - 遵循项目的错误处理和日志规范
+- 全局配置默认值均为 `false`，需要显式启用
+- 管理员权限检查使用 `auth.RoleAdmin` 常量
+- 归集和调度操作不影响用户余额，只创建 `transactions` 记录
+- 全局配置默认值均为 `false`，需要显式启用
+- 管理员权限检查使用 `auth.RoleAdmin` 常量
+- 归集和调度操作不影响用户余额，只创建 `transactions` 记录
 
